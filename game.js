@@ -84,6 +84,25 @@ function justPressed(scene, ...codes) {
 
 const FN='Times New Roman';
 
+// Safe storage fallback for sandboxed environment
+const safeStorage = {
+  data: {},
+  getItem(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch(e) {
+      return this.data[key] || null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch(e) {
+      this.data[key] = value;
+    }
+  }
+};
+
 function genFounderSprite(scene, key, color1, color2) {
   if(scene.textures.exists(key)) return;
   const rt = scene.add.renderTexture(0, 0, 32, 48);
@@ -426,7 +445,7 @@ class GameModeScene extends Phaser.Scene {
     this.add.text(w/2, 80, 'SELECT GAME MODE', { fontSize: '42px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(w/2, 180, '1 PLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFD700', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(w/2, 240, 'HIGH SCORE MODE', { fontSize: '20px', fontFamily: FN, color: '#AAAAAA' }).setOrigin(0.5);
-    const highScore=localStorage.getItem('highScore')||0;
+    const highScore=safeStorage.getItem('highScore')||0;
     this.add.text(w/2, 270, 'RECORD: $'+highScore+'K', { fontSize: '18px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
     this.add.text(w/2, 340, 'MULTIPLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(w/2, 400, '2 PLAYERS VS', { fontSize: '20px', fontFamily: FN, color: '#AAAAAA' }).setOrigin(0.5);
@@ -778,7 +797,7 @@ class GameplayScene extends Phaser.Scene {
     if(this.singleMode){
       this.add.text(20,20,'SCORE',{fontSize:'16px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(0,0);
       this.scoreText1=this.add.text(20,45,'$0K',{fontSize:'36px',fontFamily:FN,color:'#FFD700',fontStyle:'bold'}).setOrigin(0,0); this.scoreText1.setShadow(2,2,'#000',3);
-      const hs=localStorage.getItem('highScore')||0;
+      const hs=safeStorage.getItem('highScore')||0;
       this.add.text(w-20,20,'RECORD',{fontSize:'16px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(1,0);
       this.highScoreText=this.add.text(w-20,45,'$'+hs+'K',{fontSize:'36px',fontFamily:FN,color:'#5DADE2',fontStyle:'bold'}).setOrigin(1,0); this.highScoreText.setShadow(2,2,'#000',3);
       this.timerText=this.add.text(w/2,40,'60',{fontSize:'48px',fontFamily:FN,color:'#E74C3C',fontStyle:'bold'}).setOrigin(0.5); this.timerText.setShadow(2,2,'#000',3);
@@ -909,9 +928,9 @@ class GameplayScene extends Phaser.Scene {
   endGame(){ 
     this.gameOver=true; this.stopTimers(); 
     if(this.singleMode){
-      const hs=parseInt(localStorage.getItem('highScore'))||0;
+      const hs=parseInt(safeStorage.getItem('highScore'))||0;
       const newRecord=this.score1>hs;
-      if(newRecord) localStorage.setItem('highScore',this.score1);
+      if(newRecord) safeStorage.setItem('highScore',this.score1);
       this.scene.start('result',{score1:this.score1,singleMode:true,newRecord:newRecord,highScore:Math.max(this.score1,hs),stats:{b1:this.bills1,h1:this.hits1,p1:this.pups1}});
     } else {
       const winner = this.score1>this.score2?1:(this.score2>this.score1?2:0); 
@@ -1028,7 +1047,7 @@ class GameplayScene extends Phaser.Scene {
     if(!this.singleMode){ 
       this.scoreText2.setText('$'+this.score2+'K'); 
     } else {
-      const hs=parseInt(localStorage.getItem('highScore'))||0;
+      const hs=parseInt(safeStorage.getItem('highScore'))||0;
       if(this.score1>hs){ this.highScoreText.setText('$'+this.score1+'K'); }
     }
   }
