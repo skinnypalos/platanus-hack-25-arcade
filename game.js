@@ -383,7 +383,7 @@ class IntroScene extends Phaser.Scene {
     addStageLights(this);
     const logo = this.add.text(w/2, h/2 - 20, 'STARTUP SCRAMBLE', { fontSize: '58px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
     const sub = this.add.text(w/2, h/2 + 30, 'PLATANUS HACK 25', { fontSize: '24px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
-    const press = this.add.text(w/2, h/2 + 90, 'PRESS START TO CONTINUE', { fontSize: '18px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
+    const press = this.add.text(w/2, h/2 + 90, 'PRESIONA START o BOTÓN A', { fontSize: '18px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
     this.tweens.add({ targets: press, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
   }
   update() {
@@ -435,8 +435,7 @@ class GameModeScene extends Phaser.Scene {
       {y: 340, main: this.add.text(w/2, 340, 'MULTIPLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5)}
     ];
     this.arrow = this.add.text(w/2 - 220, 180, '▶', { fontSize: '42px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
-    this.keys = this.input.keyboard.addKeys('UP,DOWN,W,S,SPACE,ENTER,BACKSPACE');
-    this.add.text(w/2, h-60, 'SPACE: SELECT | BACKSPACE: BACK', { fontSize: '16px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
+    this.add.text(w/2, h-60, 'JOYSTICK: MOVER | BOTÓN A: SELECCIONAR | BOTÓN B: VOLVER', { fontSize: '14px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
   }
   update() {
     if (justPressed(this, 'P1U', 'P2U', 'P1D', 'P2D')) { 
@@ -473,6 +472,8 @@ class InstructionsScene extends Phaser.Scene {
     this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
     addStageLights(this);
     this.slides=[
+      {title:'CONTROLES',desc:'JOYSTICK: Mover izquierda/derecha\nBOTÓN A o JOYSTICK ↑: Saltar\nDOBLE SALTO con power-ups',color:0x3498DB,icon:'controls'},
+      {title:'EVENTOS ESPECIALES',desc:'Aparecen aleatoriamente!\nGolden Hour, Bill Storm,\nAnti-Gravity',color:0xFF6B6B,icon:'events'},
       {title:'Billete Verde',desc:'+1K USD\nRecógelo para sumar puntos\n3 seguidos = +2 BONUS',color:0x27AE60,icon:'$'},
       {title:'Billete Rojo',desc:'-1K USD (EN PITCH MODE: -5K)\nEvítalo o perderás puntos',color:0xE74C3C,icon:'$'},
       {title:'Ampolleta Dorada',desc:'MENTOR MODE\nTamaño + Velocidad + DOBLE SALTO\nRoba puntos al rival - 8 seg',color:0xFFD700,icon:'bulb'},
@@ -482,8 +483,7 @@ class InstructionsScene extends Phaser.Scene {
       {title:'PIVOT',desc:'RALENTIZA AL OPONENTE\nReduce su velocidad 50%\n6 segundos',color:0x8B4513,icon:'book'}
     ];
     this.createSlide(0);
-    this.keys=this.input.keyboard.addKeys('LEFT,RIGHT,A,D,BACKSPACE,SPACE,ENTER');
-    this.add.text(w/2,h-40,'←/→: NAVEGAR | SPACE: CONTINUAR | BACKSPACE: MENÚ',{fontSize:'14px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+    this.add.text(w/2,h-40,'JOYSTICK ←/→: NAVEGAR | BOTÓN A: CONTINUAR | BOTÓN B: MENÚ',{fontSize:'14px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
   }
   createSlide(index){
     const w=this.scale.width,h=this.scale.height;
@@ -494,7 +494,45 @@ class InstructionsScene extends Phaser.Scene {
     const desc=this.add.text(w/2,h-180,slide.desc,{fontSize:'24px',fontFamily:FN,color:'#FFD700',align:'center'}).setOrigin(0.5);
     this.slideGroup.add([title,desc]);
     const centerX=w/2,centerY=h/2;
-    if(slide.icon==='$'){
+    if(slide.icon==='controls'){
+      const c=this.add.container(centerX,centerY);
+      const g=this.add.graphics();
+      g.fillStyle(0x3498DB,1); g.fillCircle(-40,0,30);
+      g.fillStyle(0x2C3E50,1); g.fillCircle(-40,0,20);
+      g.fillStyle(0x3498DB,1); g.fillRect(-50,-10,20,4); g.fillRect(-50,6,20,4);
+      g.fillRect(-48,-20,4,10); g.fillRect(-48,10,4,10);
+      g.fillStyle(0xFF6B6B,1); g.fillCircle(40,0,25);
+      g.fillStyle(0xFFFFFF,1);
+      g.fillStyle(0x2C3E50,1); g.fillRect(36,-8,8,16);
+      g.fillRect(32,-4,16,8);
+      c.add(g);
+      c.setScale(1.5);
+      this.tweens.add({targets:c,scaleX:1.7,scaleY:1.7,duration:700,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='events'){
+      const c=this.add.container(centerX,centerY);
+      const g=this.add.graphics();
+      g.fillStyle(0xFFD700,1);
+      g.beginPath();
+      for(let i=0;i<5;i++){
+        const angle=(i*4*Math.PI)/5-Math.PI/2;
+        const x=Math.cos(angle)*20;
+        const y=Math.sin(angle)*20-20;
+        if(i===0) g.moveTo(x,y); else g.lineTo(x,y);
+        const innerAngle=((i*4+2)*Math.PI)/5-Math.PI/2;
+        g.lineTo(Math.cos(innerAngle)*10,Math.sin(innerAngle)*10-20);
+      }
+      g.closePath();
+      g.fillPath();
+      g.fillStyle(0xFF6B6B,1); g.fillCircle(-25,15,12);
+      g.fillStyle(0x9B59B6,1); g.fillCircle(25,15,12);
+      g.fillStyle(0x27AE60,1); g.fillCircle(0,30,12);
+      g.fillStyle(0xFFFFFF,0.8); g.fillCircle(-25,15,4); g.fillCircle(25,15,4); g.fillCircle(0,30,4);
+      c.add(g);
+      c.setScale(1.8);
+      this.tweens.add({targets:c,angle:360,duration:4000,repeat:-1,ease:'Linear'});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='$'){
       const isRed=slide.color===0xE74C3C;
       const c=this.add.container(centerX,centerY);
       const bg=this.add.rectangle(0,0,80,40,slide.color);
@@ -615,8 +653,7 @@ class BackgroundSelectScene extends Phaser.Scene {
     this.cursor=this.bgNames.indexOf(current);
     if(this.cursor<0) this.cursor=0;
     this.updateMenu();
-    this.keys=this.input.keyboard.addKeys('UP,DOWN,W,S,SPACE,ENTER,BACKSPACE');
-    this.add.text(w/2,h-80,'SPACE: SELECT | BACKSPACE: BACK',{fontSize:'16px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+    this.add.text(w/2,h-80,'JOYSTICK ↑/↓: MOVER | BOTÓN A: SELECCIONAR | BOTÓN B: VOLVER',{fontSize:'14px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
   }
   update(){
     if(justPressed(this, 'P1U', 'P2U')){ 
@@ -658,19 +695,18 @@ class CharacterSelectScene extends Phaser.Scene {
     this.p1List=['f1','f2','f3','f4']; this.p2List=['f2','f1','f3','f4']; this.i1=0; this.i2=0;
     if(this.mode==='single'){
       this.s1=this.add.sprite(w/2,h/2,'f1').setScale(2.5); 
-      this.add.text(w/2,h/2+100,'YOU\nA/D: SELECT',{fontSize:'18px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
+      this.add.text(w/2,h/2+100,'JUGADOR 1\nJOYSTICK ←/→: SELECCIONAR',{fontSize:'18px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
     } else {
       this.s1=this.add.sprite(w/2-200,h/2,'f1').setScale(2); 
-      this.add.text(this.s1.x,h/2+80,'BUSINESS FOUNDER\nP1: A/D/W',{fontSize:'16px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
+      this.add.text(this.s1.x,h/2+80,'BUSINESS FOUNDER\nP1: JOYSTICK + BOTÓN A',{fontSize:'16px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
       this.s2=this.add.sprite(w/2+200,h/2,'f2').setScale(2); 
-      this.add.text(this.s2.x,h/2+80,'TECH FOUNDER\nP2: ←/→/↑',{fontSize:'16px',fontFamily:FN,color:'#ECF0F1',align:'center'}).setOrigin(0.5);
+      this.add.text(this.s2.x,h/2+80,'TECH FOUNDER\nP2: JOYSTICK + BOTÓN A',{fontSize:'16px',fontFamily:FN,color:'#ECF0F1',align:'center'}).setOrigin(0.5);
       this.tweens.add({targets:[this.s1,this.s2], y:'+=6', duration:600, yoyo:true, repeat:-1});
     }
     if(this.mode==='single'){
       this.tweens.add({targets:this.s1, y:'+=8', duration:600, yoyo:true, repeat:-1});
     }
-    this.keys=this.input.keyboard.addKeys('A,D,LEFT,RIGHT,SPACE,ENTER');
-    this.add.text(w/2,h-80,'PRESS START TO CONTINUE',{fontSize:'18px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+    this.add.text(w/2,h-80,'PRESIONA START PARA CONTINUAR',{fontSize:'18px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
     this.selectedBg=data&&data.background?data.background:(this.game.registry.get('background')||'hackathon');
   }
   update(){
@@ -719,6 +755,7 @@ class GameplayScene extends Phaser.Scene {
   }
   create(data){ 
     this.items=[]; this.powerups=[]; this.spawnTimers=[]; this.score1=0; this.score2=0; this.timeLeft=60; this.difficulty=1; this.bills1=0; this.bills2=0; this.hits1=0; this.hits2=0; this.pups1=0; this.pups2=0; this.obstacles=[]; this.platforms=[]; this.combo1=0; this.combo2=0; this.multiplier1=1; this.multiplier2=1; this.multiplierTime1=0; this.multiplierTime2=0; this.lastStealTime=0; this.jumpsLeft1=1; this.jumpsLeft2=1; this.slowTime1=0; this.slowTime2=0; this.doubleJumpTime1=0; this.doubleJumpTime2=0; this.singleMode=data&&data.mode==='single';
+    this.activeEvent=null; this.eventEndTime=0; this.lastEventTime=0; this.eventOverlay=null; this.eventParticles=[];
     const w=this.scale.width,h=this.scale.height;
     const bgName=data&&data.background?data.background:(this.game.registry.get('background')||'hackathon');
     if(bgName==='city') createCityBackground(this);
@@ -751,6 +788,7 @@ class GameplayScene extends Phaser.Scene {
       this.timerText=this.add.text(w/2,80,'60',{fontSize:'48px',fontFamily:FN,color:'#E74C3C',fontStyle:'bold'}).setOrigin(0.5); this.timerText.setShadow(2,2,'#000',3);
     }
     this.pitchModeText=this.add.text(w/2,150,'PITCH MODE',{fontSize:'56px',fontFamily:FN,color:'#FF0000',fontStyle:'bold'}).setOrigin(0.5); this.pitchModeText.setShadow(3,3,'#000',5); this.pitchModeText.setVisible(false); this.pitchModeText.setAlpha(0);
+    this.eventText=this.add.text(w/2,h/2,'',{fontSize:'48px',fontFamily:FN,color:'#FFD700',fontStyle:'bold',align:'center'}).setOrigin(0.5); this.eventText.setShadow(3,3,'#000',5); this.eventText.setVisible(false).setDepth(100);
     this.startTimers(); this.gameOver=false;
   }
   createFloorObstacles() {
@@ -802,14 +840,70 @@ class GameplayScene extends Phaser.Scene {
   startTimers(){ const a=this.time.addEvent({delay:1000,callback:this.updateTimer,callbackScope:this,loop:true}); const b=this.time.addEvent({delay:1000,callback:this.spawnBill,callbackScope:this,loop:true}); const c=this.time.addEvent({delay:1500,callback:this.spawnObstacle,callbackScope:this,loop:true}); const d=this.time.addEvent({delay:10000,callback:this.spawnPowerup,callbackScope:this,loop:true}); const e=this.time.addEvent({delay:12000,callback:this.spawnMultiplier,callbackScope:this,loop:true}); const f=this.time.addEvent({delay:16000,callback:this.spawnBluelabel,callbackScope:this,loop:true}); const g=this.time.addEvent({delay:14000,callback:this.spawnBook,callbackScope:this,loop:true}); this.spawnTimers=[a,b,c,d,e,f,g]; }
   stopTimers(){ this.spawnTimers.forEach(t=>t&&t.remove()); this.spawnTimers=[]; }
   updateTimer(){ if(this.gameOver) return; this.timeLeft--; this.timerText.setText(this.timeLeft); const pitchMode=this.timeLeft<=10; if(this.pitchModeText){ if(pitchMode&&!this.pitchModeText.visible){ this.pitchModeText.setVisible(true); this.tweens.add({targets:this.pitchModeText,alpha:0.9,duration:300}); this.tweens.add({targets:this.pitchModeText,scaleX:1.2,scaleY:1.2,duration:400,yoyo:true,repeat:-1}); } else if(!pitchMode&&this.pitchModeText.visible){ this.tweens.add({targets:this.pitchModeText,alpha:0,duration:300,onComplete:()=>this.pitchModeText.setVisible(false)}); } } if(this.timeLeft%10===0&&this.timeLeft>10){ this.difficulty=Math.min(3,this.difficulty+0.25); } if(this.timeLeft<=0){ this.endGame(); } }
-  spawnBill(){ if(this.gameOver) return; const count=this.items.filter(i=>i.type==='bill'&&i.active).length; if(count>=60) return; const pitchMode=this.timeLeft<=10; const isRed=pitchMode?(Math.random()<0.85):(Math.random()<0.35); const multiplier=pitchMode?2:1; const spawnCount=pitchMode?3:1; for(let i=0;i<spawnCount;i++){ const x=Phaser.Math.Between(50,this.scale.width-50); const c=this.add.container(x,-20-i*25); const bg=this.add.rectangle(0,0,40,20,isRed?0xE74C3C:0x27AE60); const tx=this.add.text(0,0,'$',{fontSize:'16px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5); if(multiplier>1){ const mtx=this.add.text(0,-10,'x2',{fontSize:'10px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5); c.add([bg,tx,mtx]); } else { c.add([bg,tx]); } c.type='bill'; c.value=(isRed&&pitchMode)?-5:(isRed?-1:1); c.multiplier=multiplier; this.physics.add.existing(c); c.body.setVelocity(0,150*this.difficulty); this.items.push(c); } }
+  spawnBill(){ if(this.gameOver) return; const count=this.items.filter(i=>i.type==='bill'&&i.active).length; if(count>=60) return; const pitchMode=this.timeLeft<=10; const isRed=pitchMode?(Math.random()<0.85):(Math.random()<0.35); const spawnCount=pitchMode?3:1; for(let i=0;i<spawnCount;i++){ const x=Phaser.Math.Between(50,this.scale.width-50); const c=this.add.container(x,-20-i*25); const bg=this.add.rectangle(0,0,40,20,isRed?0xE74C3C:0x27AE60); const tx=this.add.text(0,0,'$',{fontSize:'16px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5); const redInPitch=isRed&&pitchMode; const multiplier=(pitchMode&&!redInPitch)?2:1; if(multiplier>1){ const mtx=this.add.text(0,-10,'x2',{fontSize:'10px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5); c.add([bg,tx,mtx]); } else { c.add([bg,tx]); } c.type='bill'; c.value=redInPitch?-5:(isRed?-1:1); c.multiplier=multiplier; this.physics.add.existing(c); c.body.setVelocity(0,150*this.difficulty); this.items.push(c); } }
   spawnObstacle(){ if(this.gameOver||Math.random()>0.6) return; const count=this.items.filter(i=>i.type==='obstacle'&&i.active).length; if(count>=30) return; const x=Phaser.Math.Between(50,this.scale.width-50); const c=this.add.container(x,-20); if(Math.random()<0.25){ const bg=this.add.circle(0,0,14,0xAAAAAA); const t=this.add.text(0,-2,'...',{fontSize:'16px',fontFamily:FN,color:'#000'}).setOrigin(0.5); c.add([bg,t]); c.type='freeze'; } else { const bg=this.add.rectangle(0,0,40,20,0xE74C3C); const t=this.add.text(0,0,'✗',{fontSize:'18px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5); c.add([bg,t]); c.type='obstacle'; c.value=-1; } this.physics.add.existing(c); c.body.setVelocity(0,180*this.difficulty); this.items.push(c); }
   spawnPowerup(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const bulb=this.add.circle(0,0,14,0xFFD700); const base=this.add.rectangle(0,12,12,6,0xB7950B); const fil=this.add.rectangle(0,-2,8,2,0xFFF2B0); c.add([bulb,base,fil]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='powerup'; this.tweens.add({targets:c,scaleX:1.2,scaleY:1.2,duration:300,yoyo:true,repeat:-1}); this.powerups.push(c); }
   spawnMultiplier(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const can=this.add.sprite(0,0,'redbull'); can.setScale(0.8); c.add([can]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='multiplier'; this.tweens.add({targets:c,scaleX:1.15,scaleY:1.15,duration:400,yoyo:true,repeat:-1}); this.powerups.push(c); }
   spawnBluelabel(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const bottle=this.add.sprite(0,0,'bluelabel'); bottle.setScale(1.0); c.add([bottle]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='bluelabel'; this.tweens.add({targets:c,scaleX:1.15,scaleY:1.15,duration:600,yoyo:true,repeat:-1}); this.tweens.add({targets:c,rotation:Phaser.Math.Between(-0.1,0.1),duration:1000,yoyo:true,repeat:-1}); this.powerups.push(c); }
   spawnBook(){ if(this.gameOver||this.singleMode) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const book=this.add.sprite(0,0,'book'); book.setScale(0.9); c.add([book]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='slowbook'; this.tweens.add({targets:c,rotation:0.1,duration:800,yoyo:true,repeat:-1}); this.powerups.push(c); }
+  triggerRandomEvent(){ 
+    if(this.gameOver||this.activeEvent||this.timeLeft<=10) return; 
+    const now=this.time.now; if(now-this.lastEventTime<15000) return;
+    const events=['golden','storm','antigrav'];
+    const event=Phaser.Utils.Array.GetRandom(events);
+    this.lastEventTime=now;
+    if(event==='golden') this.startGoldenHour();
+    else if(event==='storm') this.startBillStorm();
+    else if(event==='antigrav') this.startAntiGravity();
+  }
+  startGoldenHour(){ 
+    this.activeEvent='golden'; this.eventEndTime=this.time.now+5000;
+    this.showEventText('⭐ GOLDEN HOUR ⭐\n¡TODO VALE x2!',0xFFD700);
+    this.playTone([523,659,784,1047]);
+    const w=this.scale.width,h=this.scale.height;
+    this.eventOverlay=this.add.rectangle(w/2,h/2,w,h,0xFFD700,0.15).setDepth(5);
+    this.tweens.add({targets:this.eventOverlay,alpha:0.25,duration:500,yoyo:true,repeat:-1});
+  }
+  startBillStorm(){ 
+    this.activeEvent='storm'; this.eventEndTime=this.time.now+3000;
+    this.showEventText('💰 BILL STORM 💰\n¡LLUVIA DE DINERO!',0x27AE60);
+    this.playTone([784,880,988,1175]);
+    for(let i=0;i<20;i++){ this.time.delayedCall(i*150,()=>{ if(!this.gameOver) this.spawnBill(); }); }
+  }
+  startAntiGravity(){ 
+    this.activeEvent='antigrav'; this.eventEndTime=this.time.now+6000;
+    this.showEventText('🚀 ANTI-GRAVITY 🚀\n¡FLOTAS EN EL AIRE!',0x9B59B6);
+    this.playTone([440,554,659,880,1047]);
+    if(this.p1) this.p1.body.setGravity(0,300);
+    if(this.p2) this.p2.body.setGravity(0,300);
+    this.createFloatingParticles();
+  }
+  showEventText(text,color){ 
+    this.eventText.setText(text).setColor('#'+color.toString(16).padStart(6,'0')).setVisible(true).setAlpha(0).setScale(0.5);
+    this.tweens.add({targets:this.eventText,alpha:1,scale:1,duration:300,ease:'Back.easeOut'});
+    this.time.delayedCall(2000,()=>{ this.tweens.add({targets:this.eventText,alpha:0,scale:0.8,duration:400,onComplete:()=>this.eventText.setVisible(false)}); });
+  }
+  createFloatingParticles(){ 
+    const w=this.scale.width,h=this.scale.height;
+    for(let i=0;i<15;i++){ 
+      const p=this.add.circle(Phaser.Math.Between(0,w),Phaser.Math.Between(h/2,h),Phaser.Math.Between(2,5),0x9B59B6,0.6).setDepth(10);
+      this.eventParticles.push(p);
+      this.tweens.add({targets:p,y:p.y-Phaser.Math.Between(100,200),alpha:0,duration:Phaser.Math.Between(2000,4000),repeat:-1,yoyo:true});
+    }
+  }
+  endEvent(){ 
+    if(!this.activeEvent) return;
+    if(this.activeEvent==='antigrav'){ 
+      if(this.p1) this.p1.body.setGravity(0,800);
+      if(this.p2) this.p2.body.setGravity(0,800);
+      this.eventParticles.forEach(p=>p.destroy());
+      this.eventParticles=[];
+    }
+    if(this.eventOverlay){ this.eventOverlay.destroy(); this.eventOverlay=null; }
+    this.activeEvent=null;
+  }
   playTone(freqs){ playBeep(this,freqs); }
-  collectItem(player,item,isP1){ if(!item.active) return; item.setActive(false).setVisible(false); const mult=isP1?this.multiplier1:this.multiplier2; if(item.type==='bill'){ const baseValue=item.value*(item.multiplier||1); const finalValue=Math.round(baseValue*mult); if(isP1){ this.score1=Math.max(0,this.score1+finalValue); this.bills1++; this.combo1++; if(this.combo1>=3 && baseValue>0){ this.score1=Math.max(0,this.score1+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo1=0; } this.playTone([523,659,784]); this.updateScores(); } else { this.score2=Math.max(0,this.score2+finalValue); this.bills2++; this.combo2++; if(this.combo2>=3 && baseValue>0){ this.score2=Math.max(0,this.score2+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo2=0; } this.playTone([523,659,784]); this.updateScores(); } this.createParticles(item.x,item.y,baseValue>0?0x27AE60:0xE74C3C); } else if(item.type==='obstacle'){ if(isP1){ this.score1=Math.max(0,this.score1-1); this.hits1++; this.combo1=0; } else { this.score2=Math.max(0,this.score2-1); this.hits2++; this.combo2=0; } this.updateScores(); this.playTone([200,150,100]); this.createParticles(item.x,item.y,0xE74C3C); this.cameras.main.shake(200,0.005); } else if(item.type==='freeze'){ const now=this.time.now; player.frozenUntil=now+3000; player.setTint(0x99ccff); if(isP1) this.combo1=0; else this.combo2=0; this.playTone([180,120,90]); this.cameras.main.shake(120,0.004); } item.destroy(); }
+  collectItem(player,item,isP1){ if(!item.active) return; item.setActive(false).setVisible(false); const mult=isP1?this.multiplier1:this.multiplier2; if(item.type==='bill'){ const baseValue=item.value*(item.multiplier||1); const goldenMult=this.activeEvent==='golden'?2:1; const finalValue=Math.round(baseValue*mult*goldenMult); if(isP1){ this.score1=Math.max(0,this.score1+finalValue); this.bills1++; this.combo1++; if(this.combo1>=3 && baseValue>0){ this.score1=Math.max(0,this.score1+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo1=0; } this.playTone([523,659,784]); this.updateScores(); } else { this.score2=Math.max(0,this.score2+finalValue); this.bills2++; this.combo2++; if(this.combo2>=3 && baseValue>0){ this.score2=Math.max(0,this.score2+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo2=0; } this.playTone([523,659,784]); this.updateScores(); } this.createParticles(item.x,item.y,baseValue>0?0x27AE60:0xE74C3C); } else if(item.type==='obstacle'){ if(isP1){ this.score1=Math.max(0,this.score1-1); this.hits1++; this.combo1=0; } else { this.score2=Math.max(0,this.score2-1); this.hits2++; this.combo2=0; } this.updateScores(); this.playTone([200,150,100]); this.createParticles(item.x,item.y,0xE74C3C); this.cameras.main.shake(200,0.005); } else if(item.type==='freeze'){ const now=this.time.now; player.frozenUntil=now+3000; player.setTint(0x99ccff); if(isP1) this.combo1=0; else this.combo2=0; this.playTone([180,120,90]); this.cameras.main.shake(120,0.004); } item.destroy(); }
   collectPowerup(player,pw){ if(!pw.active) return; pw.setActive(false).setVisible(false); const now=this.time.now; const isP1=player===this.p1; if(pw.type==='powerup'){ player.setScale(1.5); player.powerupTime=8; player.setTint(0xFFD700); if(isP1){ this.pups1++; this.doubleJumpTime1=now+8000; } else { this.pups2++; this.doubleJumpTime2=now+8000; } this.playTone([440,554,659,880]); this.createParticles(pw.x,pw.y,0xFFD700); } else if(pw.type==='multiplier'||pw.type==='bluelabel'){ const mult=pw.type==='bluelabel'?5:2; const tint=pw.type==='bluelabel'?0x1E3A8A:0x00AAFF; const tone=pw.type==='bluelabel'?[660,784,988,1320]:[554,659,784,988]; if(isP1){ this.multiplier1=mult; this.multiplierTime1=now+7000; this.doubleJumpTime1=now+7000; } else { this.multiplier2=mult; this.multiplierTime2=now+7000; this.doubleJumpTime2=now+7000; } player.setTint(tint); this.playTone(tone); this.createParticles(pw.x,pw.y,tint); } else if(pw.type==='slowbook'&&!this.singleMode){ const opponent=isP1?this.p2:this.p1; if(isP1){ this.slowTime2=now+6000; } else { this.slowTime1=now+6000; } opponent.setTint(0x8B4513); this.playTone([200,180,160,140]); this.createParticles(pw.x,pw.y,0x8B4513); } pw.destroy(); }
   createParticles(x,y,color){ for(let i=0;i<8;i++){ const p=this.add.circle(x,y,3,color); this.tweens.add({targets:p,x:x+Phaser.Math.Between(-30,30),y:y+Phaser.Math.Between(-30,30),alpha:0,duration:500,onComplete:()=>p.destroy()}); } }
   endGame(){ 
@@ -858,6 +952,8 @@ class GameplayScene extends Phaser.Scene {
       else if(p.x <= p.minX) p.direction = 1;
       p.body.x = p.x - p.width/2;
     });
+    if(this.activeEvent&&now>=this.eventEndTime) this.endEvent();
+    if(!this.activeEvent&&Math.random()<0.002) this.triggerRandomEvent();
     this.updatePlayerEffects(now);
     this.updateItems(h);
     this.updatePowerups(h);
@@ -959,7 +1055,7 @@ class ResultScene extends Phaser.Scene {
       this.add.text(w/2, h/2, `$${score1}K vs $${score2}K`, {fontSize:'28px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
       if(stats){ this.add.text(w/2, h/2+60, `BILLS: ${stats.b1+stats.b2}  OBST.: ${stats.h1+stats.h2}  POWER-UPS: ${stats.p1+stats.p2}`, {fontSize:'18px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5); }
     }
-    const t=this.add.text(w/2, h-80, 'PRESS CONTINUE', {fontSize:'18px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5); this.tweens.add({targets:t,alpha:0,duration:500,yoyo:true,repeat:-1});
+    const t=this.add.text(w/2, h-80, 'PRESIONA BOTÓN A o START PARA CONTINUAR', {fontSize:'16px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5); this.tweens.add({targets:t,alpha:0,duration:500,yoyo:true,repeat:-1});
     this.data=data;
   }
   update(){
@@ -982,8 +1078,8 @@ class GameOverScene extends Phaser.Scene {
       this.add.text(w/2, 180, `FINAL: $${s1}K VS $${s2}K`, {fontSize:'24px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
     }
     this.add.text(w/2, 260, 'MADE FOR PLATANUS HACK 25', {fontSize:'16px',fontFamily:FN,color:'#CCCCCC'}).setOrigin(0.5);
-    const a=this.add.text(w/2, 340, 'PLAY AGAIN (START)', {fontSize:'20px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
-    const b=this.add.text(w/2, 380, 'BACK TO MENU (B BUTTON)', {fontSize:'20px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    const a=this.add.text(w/2, 340, 'START o BOTÓN A: JUGAR DE NUEVO', {fontSize:'18px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    const b=this.add.text(w/2, 380, 'BOTÓN B: VOLVER AL MENÚ', {fontSize:'18px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
   }
   update(){
     if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) this.scene.start('mainMenu');
