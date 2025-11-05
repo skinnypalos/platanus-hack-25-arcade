@@ -1,6 +1,4 @@
-// Platanus Hack 25: Snake Game
-// Navigate the snake around the "PLATANUS HACK ARCADE" title made of blocks!
-
+// Startup Scramble - Multi-Scene Flow
 // =============================================================================
 // ARCADE BUTTON MAPPING - COMPLETE TEMPLATE
 // =============================================================================
@@ -12,425 +10,994 @@
 //
 // To use in your game:
 //   if (key === 'P1U') { ... }  // Works on both arcade and local (via keyboard)
-//
-// CURRENT GAME USAGE (Snake):
-//   - P1U/P1D/P1L/P1R (Joystick) → Snake Direction
-//   - P1A (Button A) or START1 (Start Button) → Restart Game
 // =============================================================================
 
 const ARCADE_CONTROLS = {
   // ===== PLAYER 1 CONTROLS =====
-  // Joystick - Left hand on WASD
-  'P1U': ['w'],
-  'P1D': ['s'],
-  'P1L': ['a'],
-  'P1R': ['d'],
-  'P1DL': null,  // Diagonal down-left (no keyboard default)
-  'P1DR': null,  // Diagonal down-right (no keyboard default)
-
-  // Action Buttons - Right hand on home row area (ergonomic!)
-  // Top row (ABC): U, I, O  |  Bottom row (XYZ): J, K, L
-  'P1A': ['u'],
-  'P1B': ['i'],
-  'P1C': ['o'],
-  'P1X': ['j'],
-  'P1Y': ['k'],
-  'P1Z': ['l'],
-
-  // Start Button
-  'START1': ['1', 'Enter'],
-
+  'P1U': ['w', 'W'], // Joystick Up
+  'P1D': ['s', 'S'], // Joystick Down
+  'P1L': ['a', 'A'], // Joystick Left
+  'P1R': ['d', 'D'], // Joystick Right
+  'P1A': ['u', 'U'], // Button A (Jump)
+  'P1B': ['i', 'I'], // Button B
+  'P1C': ['o', 'O'], // Button C
+  'P1X': ['j', 'J'], // Button X
+  'P1Y': ['k', 'K'], // Button Y
+  'P1Z': ['l', 'L'], // Button Z
+  'START1': ['1', 'Enter'], // Start Button
+  
   // ===== PLAYER 2 CONTROLS =====
-  // Joystick - Right hand on Arrow Keys
-  'P2U': ['ArrowUp'],
-  'P2D': ['ArrowDown'],
-  'P2L': ['ArrowLeft'],
-  'P2R': ['ArrowRight'],
-  'P2DL': null,  // Diagonal down-left (no keyboard default)
-  'P2DR': null,  // Diagonal down-right (no keyboard default)
-
-  // Action Buttons - Left hand (avoiding P1's WASD keys)
-  // Top row (ABC): R, T, Y  |  Bottom row (XYZ): F, G, H
-  'P2A': ['r'],
-  'P2B': ['t'],
-  'P2C': ['y'],
-  'P2X': ['f'],
-  'P2Y': ['g'],
-  'P2Z': ['h'],
-
-  // Start Button
-  'START2': ['2']
+  'P2U': ['ArrowUp'], // Joystick Up
+  'P2D': ['ArrowDown'], // Joystick Down
+  'P2L': ['ArrowLeft'], // Joystick Left
+  'P2R': ['ArrowRight'], // Joystick Right
+  'P2A': ['Numpad1'], // Button A (Jump)
+  'P2B': ['Numpad2'], // Button B
+  'P2C': ['Numpad3'], // Button C
+  'P2X': ['Numpad4'], // Button X
+  'P2Y': ['Numpad5'], // Button Y
+  'P2Z': ['Numpad6'], // Button Z
+  'START2': ['2'] // Start Button
 };
 
-// Build reverse lookup: keyboard key → arcade button code
-const KEYBOARD_TO_ARCADE = {};
-for (const [arcadeCode, keyboardKeys] of Object.entries(ARCADE_CONTROLS)) {
-  if (keyboardKeys) {
-    // Handle both array and single value
-    const keys = Array.isArray(keyboardKeys) ? keyboardKeys : [keyboardKeys];
+// Create reverse mapping: keyboard key -> arcade code
+const KEY_TO_ARCADE = {};
+Object.keys(ARCADE_CONTROLS).forEach(arcadeCode => {
+  const keys = ARCADE_CONTROLS[arcadeCode];
+  if (keys) {
     keys.forEach(key => {
-      KEYBOARD_TO_ARCADE[key] = arcadeCode;
+      if (!KEY_TO_ARCADE[key]) KEY_TO_ARCADE[key] = [];
+      KEY_TO_ARCADE[key].push(arcadeCode);
     });
   }
+});
+
+// Helper function to check if a key/arcade code is pressed
+function isPressed(scene, ...codes) {
+  if (!scene.input || !scene.input.keyboard) return false;
+  return codes.some(code => {
+    // Check if it's an arcade code
+    const keys = ARCADE_CONTROLS[code];
+    if (keys) {
+      return keys.some(k => scene.input.keyboard.addKey(k).isDown);
+    }
+    // Otherwise treat as direct key
+    return scene.input.keyboard.addKey(code).isDown;
+  });
 }
 
-const config = {
-  type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  backgroundColor: '#000000',
-  scene: {
-    create: create,
-    update: update
-  }
-};
-
-const game = new Phaser.Game(config);
-
-// Game variables
-let snake = [];
-let snakeSize = 15;
-let direction = { x: 1, y: 0 };
-let nextDirection = { x: 1, y: 0 };
-let food;
-let score = 0;
-let scoreText;
-let titleBlocks = [];
-let gameOver = false;
-let moveTimer = 0;
-let moveDelay = 100;  // Faster initial speed (was 150ms)
-let graphics;
-
-// Pixel font patterns (5x5 grid for each letter)
-const letters = {
-  P: [[1,1,1,1],[1,0,0,1],[1,1,1,1],[1,0,0,0],[1,0,0,0]],
-  L: [[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]],
-  A: [[0,1,1,0],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1]],
-  T: [[1,1,1,1],[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]],
-  N: [[1,0,0,1],[1,1,0,1],[1,0,1,1],[1,0,0,1],[1,0,0,1]],
-  U: [[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
-  S: [[0,1,1,1],[1,0,0,0],[0,1,1,0],[0,0,0,1],[1,1,1,0]],
-  H: [[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1]],
-  C: [[0,1,1,1],[1,0,0,0],[1,0,0,0],[1,0,0,0],[0,1,1,1]],
-  K: [[1,0,0,1],[1,0,1,0],[1,1,0,0],[1,0,1,0],[1,0,0,1]],
-  '2': [[1,1,1,0],[0,0,0,1],[0,1,1,0],[1,0,0,0],[1,1,1,1]],
-  '5': [[1,1,1,1],[1,0,0,0],[1,1,1,0],[0,0,0,1],[1,1,1,0]],
-  ':': [[0,0,0,0],[0,1,0,0],[0,0,0,0],[0,1,0,0],[0,0,0,0]],
-  R: [[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,1,0],[1,0,0,1]],
-  D: [[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,0]],
-  E: [[1,1,1,1],[1,0,0,0],[1,1,1,0],[1,0,0,0],[1,1,1,1]]
-};
-
-// Bold font for ARCADE (filled/solid style)
-const boldLetters = {
-  A: [[1,1,1,1,1],[1,1,0,1,1],[1,1,1,1,1],[1,1,0,1,1],[1,1,0,1,1]],
-  R: [[1,1,1,1,0],[1,1,0,1,1],[1,1,1,1,0],[1,1,0,1,1],[1,1,0,1,1]],
-  C: [[1,1,1,1,1],[1,1,0,0,0],[1,1,0,0,0],[1,1,0,0,0],[1,1,1,1,1]],
-  D: [[1,1,1,1,0],[1,1,0,1,1],[1,1,0,1,1],[1,1,0,1,1],[1,1,1,1,0]],
-  E: [[1,1,1,1,1],[1,1,0,0,0],[1,1,1,1,0],[1,1,0,0,0],[1,1,1,1,1]]
-};
-
-function create() {
-  const scene = this;
-  graphics = this.add.graphics();
-
-  // Build "PLATANUS HACK ARCADE" in cyan - centered and grid-aligned
-  // PLATANUS: 8 letters × (4 cols + 1 spacing) = 40 blocks, but last letter no spacing = 39 blocks × 15px = 585px
-  let x = Math.floor((800 - 585) / 2 / snakeSize) * snakeSize;
-  let y = Math.floor(180 / snakeSize) * snakeSize;
-  'PLATANUS'.split('').forEach(char => {
-    x = drawLetter(char, x, y, 0x00ffff);
-  });
-
-  // HACK: 4 letters × (4 cols + 1 spacing) = 20 blocks, but last letter no spacing = 19 blocks × 15px = 285px
-  x = Math.floor((800 - 285) / 2 / snakeSize) * snakeSize;
-  y = Math.floor(280 / snakeSize) * snakeSize;
-  'HACK'.split('').forEach(char => {
-    x = drawLetter(char, x, y, 0x00ffff);
-  });
-
-  // ARCADE: 6 letters × (5 cols + 1 spacing) = 36 blocks, but last letter no spacing = 35 blocks × 15px = 525px
-  x = Math.floor((800 - 525) / 2 / snakeSize) * snakeSize;
-  y = Math.floor(380 / snakeSize) * snakeSize;
-  'ARCADE'.split('').forEach(char => {
-    x = drawLetter(char, x, y, 0xff00ff, true);
-  });
-
-  // Score display
-  scoreText = this.add.text(16, 16, 'Score: 0', {
-    fontSize: '24px',
-    fontFamily: 'Arial, sans-serif',
-    color: '#00ff00'
-  });
-
-  // Instructions
-  this.add.text(400, 560, 'Use Joystick to Move | Avoid Walls, Yourself & The Title!', {
-    fontSize: '16px',
-    fontFamily: 'Arial, sans-serif',
-    color: '#888888',
-    align: 'center'
-  }).setOrigin(0.5);
-
-  // Initialize snake (start top left)
-  snake = [
-    { x: 75, y: 60 },
-    { x: 60, y: 60 },
-    { x: 45, y: 60 }
-  ];
-
-  // Spawn initial food
-  spawnFood();
-
-  // Keyboard and Arcade Button input
-  this.input.keyboard.on('keydown', (event) => {
-    // Normalize keyboard input to arcade codes for easier testing
-    const key = KEYBOARD_TO_ARCADE[event.key] || event.key;
-
-    // Restart game (arcade buttons only)
-    if (gameOver && (key === 'P1A' || key === 'START1')) {
-      restartGame(scene);
-      return;
+// Helper function to check if a key was just pressed (down)
+function justPressed(scene, ...codes) {
+  if (!scene.input || !scene.input.keyboard) return false;
+  return codes.some(code => {
+    const keys = ARCADE_CONTROLS[code];
+    if (keys) {
+      return keys.some(k => {
+        const key = scene.input.keyboard.addKey(k);
+        return Phaser.Input.Keyboard.JustDown(key);
+      });
     }
-
-    // Direction controls (keyboard keys get mapped to arcade codes)
-    if (key === 'P1U' && direction.y === 0) {
-      nextDirection = { x: 0, y: -1 };
-    } else if (key === 'P1D' && direction.y === 0) {
-      nextDirection = { x: 0, y: 1 };
-    } else if (key === 'P1L' && direction.x === 0) {
-      nextDirection = { x: -1, y: 0 };
-    } else if (key === 'P1R' && direction.x === 0) {
-      nextDirection = { x: 1, y: 0 };
-    }
+    const key = scene.input.keyboard.addKey(code);
+    return Phaser.Input.Keyboard.JustDown(key);
   });
-
-  playTone(this, 440, 0.1);
 }
 
-function drawLetter(char, startX, startY, color, useBold = false) {
-  const pattern = useBold ? boldLetters[char] : letters[char];
-  if (!pattern) return startX + 30;
+const FN='Times New Roman';
 
-  for (let row = 0; row < pattern.length; row++) {
-    for (let col = 0; col < pattern[row].length; col++) {
-      if (pattern[row][col]) {
-        const blockX = startX + col * snakeSize;
-        const blockY = startY + row * snakeSize;
-        titleBlocks.push({ x: blockX, y: blockY, color: color });
-      }
-    }
-  }
-  return startX + (pattern[0].length + 1) * snakeSize;
-}
-
-function update(_time, delta) {
-  if (gameOver) return;
-
-  moveTimer += delta;
-  if (moveTimer >= moveDelay) {
-    moveTimer = 0;
-    direction = nextDirection;
-    moveSnake(this);
-  }
-
-  drawGame();
-}
-
-function moveSnake(scene) {
-  const head = snake[0];
-  const newHead = {
-    x: head.x + direction.x * snakeSize,
-    y: head.y + direction.y * snakeSize
-  };
-
-  // Check wall collision
-  if (newHead.x < 0 || newHead.x >= 800 || newHead.y < 0 || newHead.y >= 600) {
-    endGame(scene);
-    return;
-  }
-
-  // Check self collision
-  for (let segment of snake) {
-    if (segment.x === newHead.x && segment.y === newHead.y) {
-      endGame(scene);
-      return;
-    }
-  }
-
-  // Check title block collision
-  for (let block of titleBlocks) {
-    if (newHead.x === block.x && newHead.y === block.y) {
-      endGame(scene);
-      return;
-    }
-  }
-
-  snake.unshift(newHead);
-
-  // Check food collision
-  if (newHead.x === food.x && newHead.y === food.y) {
-    score += 10;
-    scoreText.setText('Score: ' + score);
-    spawnFood();
-    playTone(scene, 880, 0.1);
-
-    if (moveDelay > 50) {  // Faster max speed (was 80ms)
-      moveDelay -= 2;
-    }
+function genFounderSprite(scene, key, color1, color2) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 32, 48);
+  const g = scene.add.graphics();
+  const skin = 0xF3C9A9;
+  g.fillStyle(skin, 1); g.fillRect(12, 6, 8, 8); g.fillRect(14, 14, 4, 2);
+  g.fillStyle(0x222222, 1); g.fillRect(18, 9, 1, 1);
+  g.fillStyle(0x5A3A1E, 1); g.fillRect(10, 5, 12, 3); g.fillRect(10, 8, 2, 3);
+  const c1 = Phaser.Display.Color.HexStringToColor(color1).color;
+  const c2 = Phaser.Display.Color.HexStringToColor(color2).color;
+  if (key === 'f1' || key === 'f4') {
+    g.fillStyle(c1, 1); g.fillRect(10, 16, 12, 12);
+    g.fillStyle(c2, 1); g.fillRect(15, 16, 2, 10); g.fillRect(14, 26, 4, 2);
+    g.fillStyle(0x233142, 1); g.fillRect(11, 28, 4, 10); g.fillRect(17, 28, 4, 10);
+    g.fillStyle(0x7B4B2A, 1); g.fillRect(10, 38, 6, 3); g.fillRect(16, 38, 6, 3);
   } else {
-    snake.pop();
+    g.fillStyle(c2, 1); g.fillRect(12, 9, 3, 2); g.fillRect(17, 9, 3, 2); g.fillRect(15, 10, 2, 1);
+    g.fillStyle(c1, 1); g.fillRect(10, 16, 12, 12);
+    g.fillStyle(0x6E6E6E, 1); g.fillRect(10, 26, 12, 2);
+    g.fillStyle(0x121212, 1); g.fillRect(11, 28, 4, 10); g.fillRect(17, 28, 4, 10);
+    g.fillStyle(0x2A2A2A, 1); g.fillRect(10, 38, 6, 3); g.fillRect(16, 38, 6, 3);
+  }
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function addStageLights(scene) {
+  const w = scene.scale.width, h = scene.scale.height;
+  for (let i = 0; i < 8; i++) {
+    const l = scene.add.circle(50 + i * (w/8), 40, 16, 0x7F7BFF, 0.25);
+    scene.tweens.add({ targets: l, alpha: 0.8, duration: 600, delay: i * 120, yoyo: true, repeat: -1 });
+  }
+  scene.add.rectangle(w/2, h/2, w, h, 0x12122A, 0.4);
+}
+
+function playBeep(scene, freqs, dur, vol) {
+  dur = dur || 90; vol = vol || 0.12;
+  const ctx = scene.sound && scene.sound.context; if (!ctx) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination); g.gain.value = vol; o.frequency.value = freqs[0] || 440; o.start();
+  freqs.forEach((f, i) => o.frequency.setValueAtTime(f, ctx.currentTime + (i * dur) / 1000));
+  o.stop(ctx.currentTime + (freqs.length * dur) / 1000);
+}
+
+function genLaptopSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 50, 35);
+  const g = scene.add.graphics();
+  g.fillStyle(0x2C3E50, 1); g.fillRect(5, 5, 40, 25);
+  g.fillStyle(0x1A1A1A, 1); g.fillRect(8, 8, 34, 20);
+  g.fillStyle(0x3498DB, 0.3); g.fillRect(10, 10, 30, 16);
+  g.fillStyle(0x95A5A6, 1); g.fillRect(5, 28, 40, 4);
+  g.fillStyle(0x34495E, 1); g.fillRect(12, 30, 8, 2);
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function genCoffeeSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 24, 30);
+  const g = scene.add.graphics();
+  g.fillStyle(0x8B4513, 1); g.fillEllipse(12, 25, 20, 12);
+  g.fillStyle(0x6B3410, 1); g.fillRect(2, 10, 20, 18);
+  g.fillStyle(0xD2691E, 1); g.fillEllipse(12, 10, 18, 8);
+  g.fillStyle(0xFFD700, 1); g.fillCircle(12, 12, 4);
+  g.fillStyle(0xFFFFFF, 0.6); g.fillCircle(10, 11, 2);
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function genBluelabelSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 28, 50);
+  const g = scene.add.graphics();
+  const cx = 14, cy = 25;
+  
+  // Botella base (vidrio oscuro)
+  g.fillStyle(0x1A1A2A, 1);
+  g.fillRect(8, 10, 12, 32);
+  g.fillRect(7, 42, 14, 4);
+  
+  // Cuello de la botella
+  g.fillStyle(0x1A1A2A, 1);
+  g.fillRect(10, 4, 8, 6);
+  
+  // Tapa dorada
+  g.fillStyle(0xD4AF37, 1);
+  g.fillRect(10, 2, 8, 3);
+  
+  // Etiqueta azul (Blue Label)
+  g.fillStyle(0x1E3A8A, 1);
+  g.fillRect(9, 18, 10, 16);
+  
+  // Detalles dorados en etiqueta
+  g.fillStyle(0xD4AF37, 1);
+  g.fillRect(9, 18, 10, 2);
+  g.fillRect(9, 32, 10, 2);
+  g.fillRect(12, 24, 4, 4);
+  
+  // Brillo en el vidrio
+  g.fillStyle(0xFFFFFF, 0.3);
+  g.fillRect(16, 14, 2, 8);
+  
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function genRedBullSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 24, 32);
+  const g = scene.add.graphics();
+  g.fillStyle(0xC8102E, 1); g.fillRect(6, 2, 12, 28);
+  g.fillStyle(0x0066CC, 1); g.fillRect(6, 2, 12, 8);
+  g.fillStyle(0xFFFFFF, 1); g.fillRect(8, 4, 8, 4);
+  g.fillStyle(0xFFFF00, 1); g.fillRect(9, 12, 6, 16);
+  g.fillStyle(0x000000, 1); g.fillRect(10, 28, 4, 2);
+  g.fillStyle(0xFFFFFF, 1); g.fillRect(9, 15, 6, 2);
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function genBookSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const rt = scene.add.renderTexture(0, 0, 32, 40);
+  const g = scene.add.graphics();
+  g.fillStyle(0x8B0000, 1); g.fillRect(6, 4, 20, 32);
+  g.fillStyle(0xFF4444, 1); g.fillRect(7, 5, 18, 30);
+  g.fillStyle(0xFFFFFF, 1); g.fillRect(9, 8, 14, 3); g.fillRect(9, 13, 14, 2); g.fillRect(9, 17, 14, 2); g.fillRect(9, 21, 10, 2);
+  g.fillStyle(0x666666, 1); g.fillRect(6, 4, 2, 32);
+  g.fillStyle(0x444444, 1); g.fillRect(6, 12, 2, 2); g.fillRect(6, 20, 2, 2); g.fillRect(6, 28, 2, 2);
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function genLogoPixelSprite(scene, key) {
+  if(scene.textures.exists(key)) return;
+  const size = 80;
+  const rt = scene.add.renderTexture(0, 0, size, size);
+  const g = scene.add.graphics();
+  const yellow = 0xFFD700;
+  const cream = 0xF5F5DC;
+  const px = 4;
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const radius = size / 2 - px;
+  g.fillStyle(yellow, 1);
+  for (let y = 0; y < size; y += px) {
+    for (let x = 0; x < size; x += px) {
+      const dx = x - centerX, dy = y - centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= radius) {
+        g.fillRect(x, y, px, px);
+      }
+    }
+  }
+  g.fillStyle(cream, 1);
+  const topY = 8;
+  const band1X = centerX - 14;
+  const band2X = centerX - 2;
+  const band3X = centerX + 10;
+  for (let i = 0; i < 3; i++) {
+    let baseX = [band1X, band2X, band3X][i];
+    let curve = [-0.2, 0, 0.3][i];
+    let len = [16, 20, 24][i];
+    let wd = [3, 3, 4][i];
+    for (let step = 0; step < len; step++) {
+      const y = topY + step * px;
+      const offsetX = Math.floor(step * step * curve * 0.15);
+      const pxX = Math.floor((baseX + offsetX) / px) * px;
+      const pxY = Math.floor(y / px) * px;
+      for (let w = 0; w < wd; w++) {
+        g.fillRect(pxX + w * px, pxY, px, px);
+      }
+    }
+  }
+  rt.draw(g, 0, 0); rt.saveTexture(key); g.destroy(); rt.destroy();
+}
+
+function createHackathonBackground(scene) {
+  const w = scene.scale.width, h = scene.scale.height;
+  if(!scene.textures.exists('hackathonBg')){
+    const bg = scene.add.graphics();
+    bg.fillGradientStyle(0x2C3E50, 0x2C3E50, 0x1A252F, 0x1A252F, 1);
+    bg.fillRect(0, 0, w, h);
+    for (let i = 0; i < 15; i++) {
+      bg.fillStyle(0x3498DB, Phaser.Math.FloatBetween(0.1, 0.3));
+      bg.fillCircle(Phaser.Math.Between(0, w), Phaser.Math.Between(50, h - 150), Phaser.Math.Between(2, 5));
+    }
+    bg.fillStyle(0x34495E, 0.6);
+    bg.fillRect(0, h - 60, w, 60);
+    for (let i = 0; i < 5; i++) {
+      const x = 50 + i * (w / 5);
+      bg.fillStyle(0x7F8C8D, 0.4);
+      bg.fillRect(x - 2, h - 80, 4, 20);
+    }
+    bg.generateTexture('hackathonBg', w, h);
+    bg.destroy();
+  }
+  scene.add.image(w/2, h/2, 'hackathonBg').setAlpha(0.8);
+  if (!scene.textures.exists('logoPixel')) {
+    genLogoPixelSprite(scene, 'logoPixel');
+  }
+  for (let i = 0; i < 8; i++) {
+    const x = Phaser.Math.Between(60, w - 60);
+    const y = Phaser.Math.Between(80, h - 200);
+    const scale = Phaser.Math.FloatBetween(0.3, 0.6);
+    const alpha = Phaser.Math.FloatBetween(0.15, 0.3);
+    const logo = scene.add.image(x, y, 'logoPixel');
+    logo.setScale(scale);
+    logo.setAlpha(alpha);
+    scene.tweens.add({targets: logo, alpha: alpha + 0.1, duration: 2000 + i * 200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'});
   }
 }
 
-function spawnFood() {
-  let valid = false;
-  let attempts = 0;
-
-  while (!valid && attempts < 100) {
-    attempts++;
-    const gridX = Math.floor(Math.random() * 53) * snakeSize;
-    const gridY = Math.floor(Math.random() * 40) * snakeSize;
-
-    // Check not on snake
-    let onSnake = false;
-    for (let segment of snake) {
-      if (segment.x === gridX && segment.y === gridY) {
-        onSnake = true;
-        break;
+function createCityBackground(scene) {
+  const w = scene.scale.width, h = scene.scale.height;
+  if(!scene.textures.exists('cityBg')){
+    const bg = scene.add.graphics();
+    bg.fillGradientStyle(0x1a1a2e, 0x0a0a1a, 0x2c2c4e, 0x1a1a2e, 1);
+    bg.fillRect(0, 0, w, h);
+    const buildings = [100, 180, 220, 320, 380, 480, 520, 620, 680, 750];
+    buildings.forEach((x) => {
+      const height = Phaser.Math.Between(h * 0.3, h * 0.7);
+      const width = Phaser.Math.Between(40, 80);
+      bg.fillStyle(0x34495E, 1);
+      bg.fillRect(x - width/2, h - height, width, height);
+      const windows = Math.floor(height / 20);
+      for (let win = 0; win < windows; win++) {
+        if (Math.random() > 0.3) {
+          bg.fillStyle(0xFFD700, 0.8);
+          const winY = h - height + win * 20 + 5;
+          bg.fillRect(x - width/2 + 8, winY, 12, 12);
+          bg.fillRect(x - width/2 + 24, winY, 12, 12);
+          if (width > 50) {
+            bg.fillRect(x - width/2 + 40, winY, 12, 12);
+          }
+        }
       }
-    }
+    });
+    bg.fillStyle(0x34495E, 0.6);
+    bg.fillRect(0, h - 60, w, 60);
+    bg.generateTexture('cityBg', w, h);
+    bg.destroy();
+  }
+  scene.add.image(w/2, h/2, 'cityBg').setAlpha(0.8);
+}
 
-    // Check not on title blocks
-    let onTitle = false;
-    for (let block of titleBlocks) {
-      if (gridX === block.x && gridY === block.y) {
-        onTitle = true;
-        break;
+function createOfficeBackground(scene) {
+  const w = scene.scale.width, h = scene.scale.height;
+  if(!scene.textures.exists('officeBg')){
+    const bg = scene.add.graphics();
+    bg.fillStyle(0xF5F5DC, 1);
+    bg.fillRect(0, 0, w, h);
+    bg.fillStyle(0x8B4513, 1);
+    bg.fillRect(0, 0, w, h * 0.3);
+    for (let i = 0; i < 6; i++) {
+      const x = 80 + i * 120;
+      bg.fillStyle(0xD2691E, 1);
+      bg.fillRect(x - 3, 0, 6, h * 0.3);
+    }
+    for (let i = 0; i < 8; i++) {
+      const x = 50 + i * 100;
+      bg.fillStyle(0xE0E0E0, 1);
+      bg.fillRect(x, h * 0.35, 60, 100);
+      bg.fillStyle(0x1E90FF, 0.4);
+      bg.fillRect(x + 5, h * 0.35 + 10, 50, 80);
+    }
+    bg.fillStyle(0x2C3E50, 1);
+    bg.fillRect(50, h * 0.55, 700, 4);
+    bg.fillStyle(0x34495E, 0.6);
+    bg.fillRect(0, h - 60, w, 60);
+    bg.generateTexture('officeBg', w, h);
+    bg.destroy();
+  }
+  scene.add.image(w/2, h/2, 'officeBg').setAlpha(0.8);
+}
+
+function createStageBackground(scene) {
+  const w = scene.scale.width, h = scene.scale.height;
+  if(!scene.textures.exists('stageBg')){
+    const bg = scene.add.graphics();
+    bg.fillGradientStyle(0x1a1a2e, 0x0f0f1f, 0x2a2a4a, 0x1a1a2e, 1);
+    bg.fillRect(0, 0, w, h);
+    for (let i = 0; i < 6; i++) {
+      const x = 100 + i * 120;
+      bg.fillStyle(0x7F7BFF, 0.2);
+      bg.fillEllipse(x, h * 0.2, 200, 300);
+    }
+    bg.fillStyle(0x34495E, 0.6);
+    bg.fillRect(0, h - 60, w, 60);
+    bg.generateTexture('stageBg', w, h);
+    bg.destroy();
+  }
+  scene.add.image(w/2, h/2, 'stageBg').setAlpha(0.8);
+  addStageLights(scene);
+}
+
+class IntroScene extends Phaser.Scene {
+  constructor() { super('intro'); }
+  create() {
+    const w = this.scale.width, h = this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    const logo = this.add.text(w/2, h/2 - 20, 'STARTUP SCRAMBLE', { fontSize: '58px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
+    const sub = this.add.text(w/2, h/2 + 30, 'PLATANUS HACK 25', { fontSize: '24px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
+    const press = this.add.text(w/2, h/2 + 90, 'PRESS START TO CONTINUE', { fontSize: '18px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
+    this.tweens.add({ targets: press, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
+  }
+  update() {
+    if (justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) this.scene.start('mainMenu');
+  }
+}
+
+class MainMenuScene extends Phaser.Scene {
+  constructor() { super('mainMenu'); this.cursor = 0; }
+  create() {
+    const w = this.scale.width, h = this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    this.add.text(w/2, 80, 'STARTUP SCRAMBLE', { fontSize: '48px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
+    this.opts = [
+      this.add.text(w/2, 200, 'START GAME', { fontSize: '28px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5),
+      this.add.text(w/2, 250, 'SELECT BACKGROUND', { fontSize: '24px', fontFamily: FN, color: '#FFFFFF' }).setOrigin(0.5),
+      this.add.text(w/2, 300, 'INSTRUCTIONS', { fontSize: '24px', fontFamily: FN, color: '#FFFFFF' }).setOrigin(0.5)
+    ];
+    this.updateMenu();
+  }
+  update() {
+    if (justPressed(this, 'P1U', 'P2U')) { this.cursor = (this.cursor + this.opts.length - 1) % this.opts.length; this.updateMenu(); playBeep(this,[660]); }
+    if (justPressed(this, 'P1D', 'P2D')) { this.cursor = (this.cursor + 1) % this.opts.length; this.updateMenu(); playBeep(this,[660]); }
+    if (justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) {
+      if (this.cursor === 0) this.scene.start('gameMode');
+      else if (this.cursor === 1) this.scene.start('backgroundSelect');
+      else this.scene.start('instructions');
+    }
+  }
+  updateMenu() { this.opts.forEach((o,i)=>o.setStyle({ color: i===this.cursor?'#FFD700':'#FFFFFF'})); }
+}
+
+class GameModeScene extends Phaser.Scene {
+  constructor() { super('gameMode'); this.cursor = 0; }
+  create() {
+    const w = this.scale.width, h = this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    this.add.text(w/2, 80, 'SELECT GAME MODE', { fontSize: '42px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(w/2, 180, '1 PLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFD700', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(w/2, 240, 'HIGH SCORE MODE', { fontSize: '20px', fontFamily: FN, color: '#AAAAAA' }).setOrigin(0.5);
+    const highScore=localStorage.getItem('highScore')||0;
+    this.add.text(w/2, 270, 'RECORD: $'+highScore+'K', { fontSize: '18px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
+    this.add.text(w/2, 340, 'MULTIPLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(w/2, 400, '2 PLAYERS VS', { fontSize: '20px', fontFamily: FN, color: '#AAAAAA' }).setOrigin(0.5);
+    this.opts = [
+      {y: 180, main: this.add.text(w/2, 180, '1 PLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFD700', fontStyle: 'bold' }).setOrigin(0.5)},
+      {y: 340, main: this.add.text(w/2, 340, 'MULTIPLAYER', { fontSize: '48px', fontFamily: FN, color: '#FFFFFF', fontStyle: 'bold' }).setOrigin(0.5)}
+    ];
+    this.arrow = this.add.text(w/2 - 220, 180, '▶', { fontSize: '42px', fontFamily: FN, color: '#FFD700' }).setOrigin(0.5);
+    this.keys = this.input.keyboard.addKeys('UP,DOWN,W,S,SPACE,ENTER,BACKSPACE');
+    this.add.text(w/2, h-60, 'SPACE: SELECT | BACKSPACE: BACK', { fontSize: '16px', fontFamily: FN, color: '#DDDDDD' }).setOrigin(0.5);
+  }
+  update() {
+    if (justPressed(this, 'P1U', 'P2U', 'P1D', 'P2D')) { 
+      this.cursor = (this.cursor + 1) % 2; 
+      this.updateMenu(); 
+      playBeep(this,[660]); 
+    }
+    if (justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) {
+      const mode = this.cursor === 0 ? 'single' : 'multi';
+      this.game.registry.set('gameMode', mode);
+      this.scene.start('characterSelect', {background: this.game.registry.get('background') || 'hackathon', mode: mode});
+    }
+    if (justPressed(this, 'P1B', 'P2B')) {
+      this.scene.start('mainMenu');
+    }
+  }
+  updateMenu() { 
+    this.opts.forEach((o,i)=>o.main.setStyle({ color: i===this.cursor?'#FFD700':'#FFFFFF'}));
+    this.arrow.setY(this.opts[this.cursor].y);
+  }
+}
+
+class InstructionsScene extends Phaser.Scene {
+  constructor(){ super('instructions'); this.slide=0; }
+  preload(){
+    genLaptopSprite(this, 'laptop');
+    genCoffeeSprite(this, 'coffee');
+    genBluelabelSprite(this, 'bluelabel');
+    genRedBullSprite(this, 'redbull');
+    genBookSprite(this, 'book');
+  }
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    this.slides=[
+      {title:'Billete Verde',desc:'+1K USD\nRecógelo para sumar puntos\n3 seguidos = +2 BONUS',color:0x27AE60,icon:'$'},
+      {title:'Billete Rojo',desc:'-1K USD (EN PITCH MODE: -5K)\nEvítalo o perderás puntos',color:0xE74C3C,icon:'$'},
+      {title:'Ampolleta Dorada',desc:'MENTOR MODE\nTamaño + Velocidad + DOBLE SALTO\nRoba puntos al rival - 8 seg',color:0xFFD700,icon:'bulb'},
+      {title:'Burnout',desc:'CONGELADO 3 segundos\nPierdes el combo activo',color:0xAAAAAA,icon:'burnout'},
+      {title:'Red Bull',desc:'MULTIPLICADOR x2\nDuplica puntos + DOBLE SALTO\n7 segundos',color:0xC8102E,icon:'redbull'},
+      {title:'Blue Label',desc:'MULTIPLICADOR x5\nPuntos x5 + DOBLE SALTO\n7 segundos',color:0x1E3A8A,icon:'bluelabel'},
+      {title:'PIVOT',desc:'RALENTIZA AL OPONENTE\nReduce su velocidad 50%\n6 segundos',color:0x8B4513,icon:'book'}
+    ];
+    this.createSlide(0);
+    this.keys=this.input.keyboard.addKeys('LEFT,RIGHT,A,D,BACKSPACE,SPACE,ENTER');
+    this.add.text(w/2,h-40,'←/→: NAVEGAR | SPACE: CONTINUAR | BACKSPACE: MENÚ',{fontSize:'14px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+  }
+  createSlide(index){
+    const w=this.scale.width,h=this.scale.height;
+    if(this.slideGroup) this.slideGroup.destroy(true);
+    this.slideGroup=this.add.container(0,0);
+    const slide=this.slides[index];
+    const title=this.add.text(w/2,100,slide.title,{fontSize:'40px',fontFamily:FN,color:'#FFFFFF',fontStyle:'bold'}).setOrigin(0.5);
+    const desc=this.add.text(w/2,h-180,slide.desc,{fontSize:'24px',fontFamily:FN,color:'#FFD700',align:'center'}).setOrigin(0.5);
+    this.slideGroup.add([title,desc]);
+    const centerX=w/2,centerY=h/2;
+    if(slide.icon==='$'){
+      const isRed=slide.color===0xE74C3C;
+      const c=this.add.container(centerX,centerY);
+      const bg=this.add.rectangle(0,0,80,40,slide.color);
+      const tx=this.add.text(0,0,'$',{fontSize:'32px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
+      c.add([bg,tx]);
+      if(isRed){
+        const mtx=this.add.text(0,-20,'x2',{fontSize:'14px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+        c.add(mtx);
       }
+      c.setScale(2);
+      this.tweens.add({targets:c,y:'-=10',duration:800,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='bulb'){
+      const c=this.add.container(centerX,centerY);
+      const bulb=this.add.circle(0,0,28,0xFFD700);
+      const base=this.add.rectangle(0,24,24,12,0xB7950B);
+      const fil=this.add.rectangle(0,-4,16,4,0xFFF2B0);
+      c.add([bulb,base,fil]);
+      c.setScale(2);
+      this.tweens.add({targets:c,scaleX:2.4,scaleY:2.4,duration:600,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='burnout'){
+      const c=this.add.container(centerX,centerY);
+      const bg=this.add.circle(0,0,28,0xAAAAAA);
+      const t=this.add.text(0,-4,'...',{fontSize:'32px',fontFamily:FN,color:'#000'}).setOrigin(0.5);
+      c.add([bg,t]);
+      c.setScale(2);
+      this.tweens.add({targets:c,alpha:0.5,duration:500,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='redbull'){
+      const c=this.add.container(centerX,centerY);
+      if(this.textures.exists('redbull')){
+        const can=this.add.sprite(0,0,'redbull');
+        can.setScale(1.6);
+        c.add(can);
+      } else {
+        const g=this.add.graphics();
+        g.fillStyle(0xC8102E,1); g.fillRect(-12,-16,24,32);
+        g.fillStyle(0x0066CC,1); g.fillRect(-12,-16,24,8);
+        g.fillStyle(0xFFFFFF,1); g.fillRect(-10,-14,20,4);
+        c.add(g);
+      }
+      this.tweens.add({targets:c,scaleX:1.7,scaleY:1.7,duration:800,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='bluelabel'){
+      const c=this.add.container(centerX,centerY);
+      if(this.textures.exists('bluelabel')){
+        const bottle=this.add.sprite(0,0,'bluelabel');
+        bottle.setScale(2.2);
+        c.add(bottle);
+      } else {
+        const g=this.add.graphics();
+        g.fillStyle(0x1A1A2A,1); g.fillRect(-6,-15,12,30);
+        g.fillStyle(0x1E3A8A,1); g.fillRect(-5,-8,10,16);
+        g.fillStyle(0xD4AF37,1); g.fillRect(-5,-8,10,2);
+        c.add(g);
+      }
+      this.tweens.add({targets:c,scaleX:2.4,scaleY:2.4,duration:700,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
+    } else if(slide.icon==='book'){
+      const c=this.add.container(centerX,centerY);
+      if(this.textures.exists('book')){
+        const book=this.add.sprite(0,0,'book');
+        book.setScale(1.8);
+        c.add(book);
+      } else {
+        const g=this.add.graphics();
+        g.fillStyle(0x8B0000,1); g.fillRect(-10,-16,20,32);
+        g.fillStyle(0xFF4444,1); g.fillRect(-9,-15,18,30);
+        c.add(g);
+      }
+      this.tweens.add({targets:c,rotation:0.1,duration:800,yoyo:true,repeat:-1});
+      this.slideGroup.add(c);
     }
-
-    if (!onSnake && !onTitle) {
-      food = { x: gridX, y: gridY };
-      valid = true;
+    const slideText=this.add.text(w/2,50,`${index+1}/${this.slides.length}`,{fontSize:'18px',fontFamily:FN,color:'#888888'}).setOrigin(0.5);
+    this.slideGroup.add(slideText);
+  }
+  update(){
+    if(justPressed(this, 'P1L', 'P2L')){
+      this.slide=(this.slide-1+this.slides.length)%this.slides.length;
+      this.createSlide(this.slide);
+      playBeep(this,[660]);
+    }
+    if(justPressed(this, 'P1R', 'P2R')){
+      this.slide=(this.slide+1)%this.slides.length;
+      this.createSlide(this.slide);
+      playBeep(this,[660]);
+    }
+    if(justPressed(this, 'P1B', 'P2B')){
+      this.scene.start('mainMenu');
+    }
+    if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')){
+      if(this.slide<this.slides.length-1){
+        this.slide++;
+        this.createSlide(this.slide);
+      } else {
+        this.scene.start('mainMenu');
+      }
     }
   }
 }
 
-function drawGame() {
-  graphics.clear();
+class BackgroundSelectScene extends Phaser.Scene {
+  constructor(){ super('backgroundSelect'); this.cursor=0; }
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    this.add.text(w/2,80,'SELECT BACKGROUND',{fontSize:'32px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    this.opts=[
+      this.add.text(w/2,200,'HACKATHON',{fontSize:'24px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5),
+      this.add.text(w/2,260,'CITY',{fontSize:'24px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5),
+      this.add.text(w/2,320,'OFFICE',{fontSize:'24px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5),
+      this.add.text(w/2,380,'STAGE',{fontSize:'24px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5)
+    ];
+    this.bgNames=['hackathon','city','office','stage'];
+    const current=this.game.registry.get('background')||'hackathon';
+    this.cursor=this.bgNames.indexOf(current);
+    if(this.cursor<0) this.cursor=0;
+    this.updateMenu();
+    this.keys=this.input.keyboard.addKeys('UP,DOWN,W,S,SPACE,ENTER,BACKSPACE');
+    this.add.text(w/2,h-80,'SPACE: SELECT | BACKSPACE: BACK',{fontSize:'16px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+  }
+  update(){
+    if(justPressed(this, 'P1U', 'P2U')){ 
+      this.cursor=(this.cursor+this.opts.length-1)%this.opts.length; 
+      this.updateMenu(); 
+      playBeep(this,[660]); 
+    }
+    if(justPressed(this, 'P1D', 'P2D')){ 
+      this.cursor=(this.cursor+1)%this.opts.length; 
+      this.updateMenu(); 
+      playBeep(this,[660]); 
+    }
+    if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')){
+      this.game.registry.set('background',this.bgNames[this.cursor]);
+      this.scene.start('mainMenu');
+    }
+    if(justPressed(this, 'P1B', 'P2B')){
+      this.scene.start('mainMenu');
+    }
+  }
+  updateMenu(){ this.opts.forEach((o,i)=>o.setStyle({color:i===this.cursor?'#FFD700':'#FFFFFF'})); }
+}
 
-  // Draw title blocks
-  titleBlocks.forEach(block => {
-    graphics.fillStyle(block.color, 1);
-    graphics.fillRect(block.x, block.y, snakeSize - 2, snakeSize - 2);
-  });
-
-  // Draw snake
-  snake.forEach((segment, index) => {
-    if (index === 0) {
-      graphics.fillStyle(0x00ff00, 1);
+class CharacterSelectScene extends Phaser.Scene {
+  constructor(){ super('characterSelect'); }
+  preload(){ 
+    genFounderSprite(this,'f1','#5DADE2','#1F618D');
+    genFounderSprite(this,'f2','#2C3E50','#ECF0F1');
+    genFounderSprite(this,'f3','#8E44AD','#ECF0F1');
+    genFounderSprite(this,'f4','#27AE60','#1F618D');
+  }
+  create(data){
+    const w=this.scale.width,h=this.scale.height;
+    this.mode=data&&data.mode?data.mode:'multi';
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    const title=this.mode==='single'?'CHOOSE YOUR FOUNDER':'CHOOSE YOUR FOUNDERS';
+    this.add.text(w/2,80,title,{fontSize:'32px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    this.p1List=['f1','f2','f3','f4']; this.p2List=['f2','f1','f3','f4']; this.i1=0; this.i2=0;
+    if(this.mode==='single'){
+      this.s1=this.add.sprite(w/2,h/2,'f1').setScale(2.5); 
+      this.add.text(w/2,h/2+100,'YOU\nA/D: SELECT',{fontSize:'18px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
     } else {
-      graphics.fillStyle(0x00aa00, 1);
+      this.s1=this.add.sprite(w/2-200,h/2,'f1').setScale(2); 
+      this.add.text(this.s1.x,h/2+80,'BUSINESS FOUNDER\nP1: A/D/W',{fontSize:'16px',fontFamily:FN,color:'#5DADE2',align:'center'}).setOrigin(0.5);
+      this.s2=this.add.sprite(w/2+200,h/2,'f2').setScale(2); 
+      this.add.text(this.s2.x,h/2+80,'TECH FOUNDER\nP2: ←/→/↑',{fontSize:'16px',fontFamily:FN,color:'#ECF0F1',align:'center'}).setOrigin(0.5);
+      this.tweens.add({targets:[this.s1,this.s2], y:'+=6', duration:600, yoyo:true, repeat:-1});
     }
-    graphics.fillRect(segment.x, segment.y, snakeSize - 2, snakeSize - 2);
-  });
-
-  // Draw food
-  graphics.fillStyle(0xff0000, 1);
-  graphics.fillRect(food.x, food.y, snakeSize - 2, snakeSize - 2);
+    if(this.mode==='single'){
+      this.tweens.add({targets:this.s1, y:'+=8', duration:600, yoyo:true, repeat:-1});
+    }
+    this.keys=this.input.keyboard.addKeys('A,D,LEFT,RIGHT,SPACE,ENTER');
+    this.add.text(w/2,h-80,'PRESS START TO CONTINUE',{fontSize:'18px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5);
+    this.selectedBg=data&&data.background?data.background:(this.game.registry.get('background')||'hackathon');
+  }
+  update(){
+    if(justPressed(this, 'P1L')){ this.i1=(this.i1+3)%4; this.s1.setTexture(this.p1List[this.i1]); playBeep(this,[660]); }
+    if(justPressed(this, 'P1R')){ this.i1=(this.i1+1)%4; this.s1.setTexture(this.p1List[this.i1]); playBeep(this,[660]); }
+    if(this.mode==='multi'){
+      if(justPressed(this, 'P2L')){ this.i2=(this.i2+3)%4; this.s2.setTexture(this.p2List[this.i2]); playBeep(this,[660]); }
+      if(justPressed(this, 'P2R')){ this.i2=(this.i2+1)%4; this.s2.setTexture(this.p2List[this.i2]); playBeep(this,[660]); }
+    }
+    if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')){
+      const p2=this.mode==='single'?'f2':this.p2List[this.i2];
+      this.scene.start('vsScreen',{p1:this.p1List[this.i1],p2:p2,background:this.selectedBg,mode:this.mode});
+    }
+  }
 }
 
-function endGame(scene) {
-  gameOver = true;
-  playTone(scene, 220, 0.5);
-
-  // Semi-transparent overlay
-  const overlay = scene.add.graphics();
-  overlay.fillStyle(0x000000, 0.7);
-  overlay.fillRect(0, 0, 800, 600);
-
-  // Game Over title with glow effect
-  const gameOverText = scene.add.text(400, 300, 'GAME OVER', {
-    fontSize: '64px',
-    fontFamily: 'Arial, sans-serif',
-    color: '#ff0000',
-    align: 'center',
-    stroke: '#ff6666',
-    strokeThickness: 8
-  }).setOrigin(0.5);
-
-  // Pulsing animation for game over text
-  scene.tweens.add({
-    targets: gameOverText,
-    scale: { from: 1, to: 1.1 },
-    alpha: { from: 1, to: 0.8 },
-    duration: 800,
-    yoyo: true,
-    repeat: -1,
-    ease: 'Sine.easeInOut'
-  });
-
-  // Score display
-  scene.add.text(400, 400, 'SCORE: ' + score, {
-    fontSize: '36px',
-    fontFamily: 'Arial, sans-serif',
-    color: '#00ffff',
-    align: 'center',
-    stroke: '#000000',
-    strokeThickness: 4
-  }).setOrigin(0.5);
-
-  // Restart instruction with subtle animation
-  const restartText = scene.add.text(400, 480, 'Press Button A or START to Restart', {
-    fontSize: '24px',
-    fontFamily: 'Arial, sans-serif',
-    color: '#ffff00',
-    align: 'center',
-    stroke: '#000000',
-    strokeThickness: 3
-  }).setOrigin(0.5);
-
-  // Blinking animation for restart text
-  scene.tweens.add({
-    targets: restartText,
-    alpha: { from: 1, to: 0.3 },
-    duration: 600,
-    yoyo: true,
-    repeat: -1,
-    ease: 'Sine.easeInOut'
-  });
+class VSScene extends Phaser.Scene { 
+  constructor(){ super('vsScreen'); }
+  create(data){ 
+    const w=this.scale.width,h=this.scale.height;
+    const mode=data&&data.mode?data.mode:'multi';
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    if(mode==='single'){
+      const s1=this.add.sprite(w/2,h/2,data.p1).setScale(3);
+      this.add.text(w/2,100,'GET READY!',{fontSize:'64px',fontFamily:FN,color:'#FFD700',fontStyle:'bold'}).setOrigin(0.5);
+      this.add.text(w/2,h/2+140,'HIGH SCORE MODE',{fontSize:'24px',fontFamily:FN,color:'#5DADE2'}).setOrigin(0.5);
+    } else {
+      const s1=this.add.sprite(w/2-160,h/2,data.p1).setScale(2.2);
+      const s2=this.add.sprite(w/2+160,h/2,data.p2).setScale(2.2);
+      this.add.text(w/2,120,'VS',{fontSize:'64px',fontFamily:FN,color:'#FFD700',fontStyle:'bold'}).setOrigin(0.5);
+    }
+    let count=3; const t=this.add.text(w/2,h-120,'3',{fontSize:'48px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    this.time.addEvent({delay:1000,repeat:3,callback:()=>{count--; t.setText(count>0?String(count):'GO!'); if(count===0){ this.time.delayedCall(500,()=>this.scene.start('gameplay',{p1:data.p1,background:data.background||'hackathon',mode:mode})); }}});
+  }
 }
 
-function restartGame(scene) {
-  snake = [
-    { x: 75, y: 60 },
-    { x: 60, y: 60 },
-    { x: 45, y: 60 }
-  ];
-  direction = { x: 1, y: 0 };
-  nextDirection = { x: 1, y: 0 };
-  score = 0;
-  gameOver = false;
-  moveDelay = 100;  // Match new faster initial speed
-  scoreText.setText('Score: 0');
-  spawnFood();
-  scene.scene.restart();
+class GameplayScene extends Phaser.Scene {
+  constructor(){ super('gameplay'); }
+  preload() {
+    genLaptopSprite(this, 'laptop');
+    genCoffeeSprite(this, 'coffee');
+    genBluelabelSprite(this, 'bluelabel');
+    genRedBullSprite(this, 'redbull');
+    genBookSprite(this, 'book');
+  }
+  create(data){ 
+    this.items=[]; this.powerups=[]; this.spawnTimers=[]; this.score1=0; this.score2=0; this.timeLeft=60; this.difficulty=1; this.bills1=0; this.bills2=0; this.hits1=0; this.hits2=0; this.pups1=0; this.pups2=0; this.obstacles=[]; this.platforms=[]; this.combo1=0; this.combo2=0; this.multiplier1=1; this.multiplier2=1; this.multiplierTime1=0; this.multiplierTime2=0; this.lastStealTime=0; this.jumpsLeft1=1; this.jumpsLeft2=1; this.slowTime1=0; this.slowTime2=0; this.doubleJumpTime1=0; this.doubleJumpTime2=0; this.singleMode=data&&data.mode==='single';
+    const w=this.scale.width,h=this.scale.height;
+    const bgName=data&&data.background?data.background:(this.game.registry.get('background')||'hackathon');
+    if(bgName==='city') createCityBackground(this);
+    else if(bgName==='office') createOfficeBackground(this);
+    else if(bgName==='stage') createStageBackground(this);
+    else createHackathonBackground(this);
+    this.ground=this.add.rectangle(w/2,h-30,w,60,0x34495E); this.physics.add.existing(this.ground,true);
+    const t1=data&&data.p1?data.p1:'f1';
+    this.p1=this.physics.add.sprite(this.singleMode?w/2:100,h-100,t1); 
+    this.p1.setCollideWorldBounds(true); this.p1.setBounce(0); this.p1.body.setGravity(0,800); this.p1.powerupTime=0; this.p1.multiplierTime=0; this.p1.body.setSize(this.p1.width*0.8,this.p1.height*0.9); this.p1.body.setOffset(this.p1.width*0.1,this.p1.height*0.1);
+    if(!this.singleMode){
+      const t2=data&&data.p2?data.p2:'f2';
+      this.p2=this.physics.add.sprite(w-100,h-100,t2);
+      this.p2.setCollideWorldBounds(true); this.p2.setBounce(0); this.p2.body.setGravity(0,800); this.p2.powerupTime=0; this.p2.multiplierTime=0; this.p2.body.setSize(this.p2.width*0.8,this.p2.height*0.9); this.p2.body.setOffset(this.p2.width*0.1,this.p2.height*0.1);
+      this.physics.add.overlap(this.p1, this.p2, this.handlePlayerCollision, null, this);
+      this.physics.add.collider(this.p2,this.ground);
+    }
+    this.physics.add.collider(this.p1,this.ground);
+    this.createFloorObstacles();
+    if(this.singleMode){
+      this.add.text(20,20,'SCORE',{fontSize:'16px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(0,0);
+      this.scoreText1=this.add.text(20,45,'$0K',{fontSize:'36px',fontFamily:FN,color:'#FFD700',fontStyle:'bold'}).setOrigin(0,0); this.scoreText1.setShadow(2,2,'#000',3);
+      const hs=localStorage.getItem('highScore')||0;
+      this.add.text(w-20,20,'RECORD',{fontSize:'16px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(1,0);
+      this.highScoreText=this.add.text(w-20,45,'$'+hs+'K',{fontSize:'36px',fontFamily:FN,color:'#5DADE2',fontStyle:'bold'}).setOrigin(1,0); this.highScoreText.setShadow(2,2,'#000',3);
+      this.timerText=this.add.text(w/2,40,'60',{fontSize:'48px',fontFamily:FN,color:'#E74C3C',fontStyle:'bold'}).setOrigin(0.5); this.timerText.setShadow(2,2,'#000',3);
+    } else {
+      this.scoreText1=this.add.text(20,80,'$0K',{fontSize:'32px',fontFamily:FN,color:'#5DADE2',fontStyle:'bold'}); this.scoreText1.setShadow(2,2,'#000',3);
+      this.scoreText2=this.add.text(w-20,80,'$0K',{fontSize:'32px',fontFamily:FN,color:'#ECF0F1',fontStyle:'bold'}).setOrigin(1,0); this.scoreText2.setShadow(2,2,'#000',3);
+      this.timerText=this.add.text(w/2,80,'60',{fontSize:'48px',fontFamily:FN,color:'#E74C3C',fontStyle:'bold'}).setOrigin(0.5); this.timerText.setShadow(2,2,'#000',3);
+    }
+    this.pitchModeText=this.add.text(w/2,150,'PITCH MODE',{fontSize:'56px',fontFamily:FN,color:'#FF0000',fontStyle:'bold'}).setOrigin(0.5); this.pitchModeText.setShadow(3,3,'#000',5); this.pitchModeText.setVisible(false); this.pitchModeText.setAlpha(0);
+    this.startTimers(); this.gameOver=false;
+  }
+  createFloorObstacles() {
+    const w = this.scale.width, h = this.scale.height;
+    this.platforms = [];
+    this.movingPlatforms = [];
+    const platformData = [
+      {x: 150, y: h - 180, width: 120, moving: false},
+      {x: 400, y: h - 260, width: 140, moving: true, minX: 250, maxX: 550, speed: 80},
+      {x: 650, y: h - 180, width: 120, moving: false},
+      {x: 280, y: h - 340, width: 100, moving: true, minX: 180, maxX: 380, speed: 60},
+      {x: 520, y: h - 320, width: 100, moving: false}
+    ];
+    platformData.forEach(pd => {
+      const platform = this.add.rectangle(pd.x, pd.y, pd.width, 14, 0x34495E);
+      const topLine = this.add.rectangle(pd.x, pd.y - 7, pd.width, 3, 0x7F8C8D);
+      this.physics.add.existing(platform, true);
+      platform.body.checkCollision.down = false;
+      platform.body.checkCollision.left = false;
+      platform.body.checkCollision.right = false;
+      this.physics.add.collider(this.p1, platform);
+      if(!this.singleMode) this.physics.add.collider(this.p2, platform);
+      platform.topLine = topLine;
+      if(pd.moving) {
+        platform.moving = true;
+        platform.minX = pd.minX;
+        platform.maxX = pd.maxX;
+        platform.speed = pd.speed;
+        platform.direction = 1;
+        this.movingPlatforms.push(platform);
+      }
+      this.platforms.push(platform);
+    });
+    const floorY = h - 60;
+    const blockPositions = [
+      {x: 220, w: 40, h: 50},
+      {x: 450, w: 35, h: 45},
+      {x: 600, w: 38, h: 48}
+    ];
+    blockPositions.forEach(bp => {
+      const block = this.add.rectangle(bp.x, floorY - bp.h/2, bp.w, bp.h, 0x8B4513);
+      const top = this.add.rectangle(bp.x, floorY - bp.h - 3, bp.w, 6, 0xD2691E);
+      this.physics.add.existing(block, true);
+      this.physics.add.collider(this.p1, block);
+      if(!this.singleMode) this.physics.add.collider(this.p2, block);
+      this.obstacles.push(block);
+    });
+  }
+  startTimers(){ const a=this.time.addEvent({delay:1000,callback:this.updateTimer,callbackScope:this,loop:true}); const b=this.time.addEvent({delay:1000,callback:this.spawnBill,callbackScope:this,loop:true}); const c=this.time.addEvent({delay:1500,callback:this.spawnObstacle,callbackScope:this,loop:true}); const d=this.time.addEvent({delay:10000,callback:this.spawnPowerup,callbackScope:this,loop:true}); const e=this.time.addEvent({delay:12000,callback:this.spawnMultiplier,callbackScope:this,loop:true}); const f=this.time.addEvent({delay:16000,callback:this.spawnBluelabel,callbackScope:this,loop:true}); const g=this.time.addEvent({delay:14000,callback:this.spawnBook,callbackScope:this,loop:true}); this.spawnTimers=[a,b,c,d,e,f,g]; }
+  stopTimers(){ this.spawnTimers.forEach(t=>t&&t.remove()); this.spawnTimers=[]; }
+  updateTimer(){ if(this.gameOver) return; this.timeLeft--; this.timerText.setText(this.timeLeft); const pitchMode=this.timeLeft<=10; if(this.pitchModeText){ if(pitchMode&&!this.pitchModeText.visible){ this.pitchModeText.setVisible(true); this.tweens.add({targets:this.pitchModeText,alpha:0.9,duration:300}); this.tweens.add({targets:this.pitchModeText,scaleX:1.2,scaleY:1.2,duration:400,yoyo:true,repeat:-1}); } else if(!pitchMode&&this.pitchModeText.visible){ this.tweens.add({targets:this.pitchModeText,alpha:0,duration:300,onComplete:()=>this.pitchModeText.setVisible(false)}); } } if(this.timeLeft%10===0&&this.timeLeft>10){ this.difficulty=Math.min(3,this.difficulty+0.25); } if(this.timeLeft<=0){ this.endGame(); } }
+  spawnBill(){ if(this.gameOver) return; const count=this.items.filter(i=>i.type==='bill'&&i.active).length; if(count>=60) return; const pitchMode=this.timeLeft<=10; const isRed=pitchMode?(Math.random()<0.85):(Math.random()<0.35); const multiplier=pitchMode?2:1; const spawnCount=pitchMode?3:1; for(let i=0;i<spawnCount;i++){ const x=Phaser.Math.Between(50,this.scale.width-50); const c=this.add.container(x,-20-i*25); const bg=this.add.rectangle(0,0,40,20,isRed?0xE74C3C:0x27AE60); const tx=this.add.text(0,0,'$',{fontSize:'16px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5); if(multiplier>1){ const mtx=this.add.text(0,-10,'x2',{fontSize:'10px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5); c.add([bg,tx,mtx]); } else { c.add([bg,tx]); } c.type='bill'; c.value=(isRed&&pitchMode)?-5:(isRed?-1:1); c.multiplier=multiplier; this.physics.add.existing(c); c.body.setVelocity(0,150*this.difficulty); this.items.push(c); } }
+  spawnObstacle(){ if(this.gameOver||Math.random()>0.6) return; const count=this.items.filter(i=>i.type==='obstacle'&&i.active).length; if(count>=30) return; const x=Phaser.Math.Between(50,this.scale.width-50); const c=this.add.container(x,-20); if(Math.random()<0.25){ const bg=this.add.circle(0,0,14,0xAAAAAA); const t=this.add.text(0,-2,'...',{fontSize:'16px',fontFamily:FN,color:'#000'}).setOrigin(0.5); c.add([bg,t]); c.type='freeze'; } else { const bg=this.add.rectangle(0,0,40,20,0xE74C3C); const t=this.add.text(0,0,'✗',{fontSize:'18px',fontFamily:FN,color:'#fff',fontStyle:'bold'}).setOrigin(0.5); c.add([bg,t]); c.type='obstacle'; c.value=-1; } this.physics.add.existing(c); c.body.setVelocity(0,180*this.difficulty); this.items.push(c); }
+  spawnPowerup(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const bulb=this.add.circle(0,0,14,0xFFD700); const base=this.add.rectangle(0,12,12,6,0xB7950B); const fil=this.add.rectangle(0,-2,8,2,0xFFF2B0); c.add([bulb,base,fil]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='powerup'; this.tweens.add({targets:c,scaleX:1.2,scaleY:1.2,duration:300,yoyo:true,repeat:-1}); this.powerups.push(c); }
+  spawnMultiplier(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const can=this.add.sprite(0,0,'redbull'); can.setScale(0.8); c.add([can]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='multiplier'; this.tweens.add({targets:c,scaleX:1.15,scaleY:1.15,duration:400,yoyo:true,repeat:-1}); this.powerups.push(c); }
+  spawnBluelabel(){ if(this.gameOver) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const bottle=this.add.sprite(0,0,'bluelabel'); bottle.setScale(1.0); c.add([bottle]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='bluelabel'; this.tweens.add({targets:c,scaleX:1.15,scaleY:1.15,duration:600,yoyo:true,repeat:-1}); this.tweens.add({targets:c,rotation:Phaser.Math.Between(-0.1,0.1),duration:1000,yoyo:true,repeat:-1}); this.powerups.push(c); }
+  spawnBook(){ if(this.gameOver||this.singleMode) return; const x=Phaser.Math.Between(100,this.scale.width-100); const c=this.add.container(x,-20); const book=this.add.sprite(0,0,'book'); book.setScale(0.9); c.add([book]); this.physics.add.existing(c); c.body.setVelocity(0,100); c.type='slowbook'; this.tweens.add({targets:c,rotation:0.1,duration:800,yoyo:true,repeat:-1}); this.powerups.push(c); }
+  playTone(freqs){ playBeep(this,freqs); }
+  collectItem(player,item,isP1){ if(!item.active) return; item.setActive(false).setVisible(false); const mult=isP1?this.multiplier1:this.multiplier2; if(item.type==='bill'){ const baseValue=item.value*(item.multiplier||1); const finalValue=Math.round(baseValue*mult); if(isP1){ this.score1=Math.max(0,this.score1+finalValue); this.bills1++; this.combo1++; if(this.combo1>=3 && baseValue>0){ this.score1=Math.max(0,this.score1+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo1=0; } this.playTone([523,659,784]); this.updateScores(); } else { this.score2=Math.max(0,this.score2+finalValue); this.bills2++; this.combo2++; if(this.combo2>=3 && baseValue>0){ this.score2=Math.max(0,this.score2+2); this.playTone([523,659,784,880]); this.createParticles(player.x,player.y-20,0x00FF00); this.combo2=0; } this.playTone([523,659,784]); this.updateScores(); } this.createParticles(item.x,item.y,baseValue>0?0x27AE60:0xE74C3C); } else if(item.type==='obstacle'){ if(isP1){ this.score1=Math.max(0,this.score1-1); this.hits1++; this.combo1=0; } else { this.score2=Math.max(0,this.score2-1); this.hits2++; this.combo2=0; } this.updateScores(); this.playTone([200,150,100]); this.createParticles(item.x,item.y,0xE74C3C); this.cameras.main.shake(200,0.005); } else if(item.type==='freeze'){ const now=this.time.now; player.frozenUntil=now+3000; player.setTint(0x99ccff); if(isP1) this.combo1=0; else this.combo2=0; this.playTone([180,120,90]); this.cameras.main.shake(120,0.004); } item.destroy(); }
+  collectPowerup(player,pw){ if(!pw.active) return; pw.setActive(false).setVisible(false); const now=this.time.now; const isP1=player===this.p1; if(pw.type==='powerup'){ player.setScale(1.5); player.powerupTime=8; player.setTint(0xFFD700); if(isP1){ this.pups1++; this.doubleJumpTime1=now+8000; } else { this.pups2++; this.doubleJumpTime2=now+8000; } this.playTone([440,554,659,880]); this.createParticles(pw.x,pw.y,0xFFD700); } else if(pw.type==='multiplier'||pw.type==='bluelabel'){ const mult=pw.type==='bluelabel'?5:2; const tint=pw.type==='bluelabel'?0x1E3A8A:0x00AAFF; const tone=pw.type==='bluelabel'?[660,784,988,1320]:[554,659,784,988]; if(isP1){ this.multiplier1=mult; this.multiplierTime1=now+7000; this.doubleJumpTime1=now+7000; } else { this.multiplier2=mult; this.multiplierTime2=now+7000; this.doubleJumpTime2=now+7000; } player.setTint(tint); this.playTone(tone); this.createParticles(pw.x,pw.y,tint); } else if(pw.type==='slowbook'&&!this.singleMode){ const opponent=isP1?this.p2:this.p1; if(isP1){ this.slowTime2=now+6000; } else { this.slowTime1=now+6000; } opponent.setTint(0x8B4513); this.playTone([200,180,160,140]); this.createParticles(pw.x,pw.y,0x8B4513); } pw.destroy(); }
+  createParticles(x,y,color){ for(let i=0;i<8;i++){ const p=this.add.circle(x,y,3,color); this.tweens.add({targets:p,x:x+Phaser.Math.Between(-30,30),y:y+Phaser.Math.Between(-30,30),alpha:0,duration:500,onComplete:()=>p.destroy()}); } }
+  endGame(){ 
+    this.gameOver=true; this.stopTimers(); 
+    if(this.singleMode){
+      const hs=parseInt(localStorage.getItem('highScore'))||0;
+      const newRecord=this.score1>hs;
+      if(newRecord) localStorage.setItem('highScore',this.score1);
+      this.scene.start('result',{score1:this.score1,singleMode:true,newRecord:newRecord,highScore:Math.max(this.score1,hs),stats:{b1:this.bills1,h1:this.hits1,p1:this.pups1}});
+    } else {
+      const winner = this.score1>this.score2?1:(this.score2>this.score1?2:0); 
+      this.scene.start('result',{score1:this.score1,score2:this.score2,winner,stats:{b1:this.bills1,b2:this.bills2,h1:this.hits1,h2:this.hits2,p1:this.pups1,p2:this.pups2}});
+    }
+  }
+  update(){ 
+    if(this.gameOver) return; 
+    const now=this.time.now, h=this.scale.height, base=200;
+    const slow1=now<this.slowTime1?0.5:1;
+    const s1=(this.p1.powerupTime>0)?1.4*slow1:slow1;
+    const f1=this.p1.frozenUntil&&now<this.p1.frozenUntil;
+    if(f1){ this.p1.setVelocityX(0); } 
+    else { const vel=isPressed(this,'P1L')?-base*s1:isPressed(this,'P1R')?base*s1:0; this.p1.setVelocityX(vel); }
+    const hasDoubleJump1=now<this.doubleJumpTime1;
+    if(this.p1.body.touching.down){ this.jumpsLeft1=hasDoubleJump1?2:1; }
+    if(!f1&&justPressed(this,'P1U','P1A')&&this.jumpsLeft1>0){ 
+      this.p1.setVelocityY(this.p1.powerupTime>0?-500:-400); 
+      this.jumpsLeft1--;
+    }
+    if(!this.singleMode){
+      const slow2=now<this.slowTime2?0.5:1;
+      const s2=(this.p2.powerupTime>0)?1.4*slow2:slow2;
+      const f2=this.p2.frozenUntil&&now<this.p2.frozenUntil;
+      if(f2){ this.p2.setVelocityX(0); } 
+      else { const vel=isPressed(this,'P2L')?-base*s2:isPressed(this,'P2R')?base*s2:0; this.p2.setVelocityX(vel); }
+      const hasDoubleJump2=now<this.doubleJumpTime2;
+      if(this.p2.body.touching.down){ this.jumpsLeft2=hasDoubleJump2?2:1; }
+      if(!f2&&justPressed(this,'P2U','P2A')&&this.jumpsLeft2>0){ 
+        this.p2.setVelocityY(this.p2.powerupTime>0?-500:-400); 
+        this.jumpsLeft2--;
+      }
+    }
+    this.movingPlatforms.forEach(p=>{
+      p.x += p.speed * p.direction * (1/60);
+      if(p.topLine) p.topLine.x = p.x;
+      if(p.x >= p.maxX) p.direction = -1;
+      else if(p.x <= p.minX) p.direction = 1;
+      p.body.x = p.x - p.width/2;
+    });
+    this.updatePlayerEffects(now);
+    this.updateItems(h);
+    this.updatePowerups(h);
+  }
+  updatePlayerEffects(now){
+    const players=this.singleMode?[this.p1]:[this.p1,this.p2];
+    players.forEach((p,i)=>{
+      if(!p) return;
+      const multTime=i===0?this.multiplierTime1:this.multiplierTime2;
+      const slowTime=i===0?this.slowTime1:this.slowTime2;
+      if(p.powerupTime>0){ 
+        p.powerupTime-=1/60; 
+        if(p.powerupTime<=0){ 
+          p.setScale(1); 
+          if(multTime<=now&&slowTime<=now) p.clearTint(); 
+        } 
+      }
+      if(multTime>0&&now>=multTime){ 
+        if(i===0){ this.multiplier1=1; this.multiplierTime1=0; }
+        else { this.multiplier2=1; this.multiplierTime2=0; }
+        if(p.powerupTime<=0&&slowTime<=now) p.clearTint(); 
+      }
+      if(slowTime>0&&now>=slowTime){ 
+        if(i===0){ this.slowTime1=0; }
+        else { this.slowTime2=0; }
+        if(multTime<=now&&p.powerupTime<=0) p.clearTint(); 
+      }
+      if(p.frozenUntil&&now>=p.frozenUntil){ 
+        p.frozenUntil=0; 
+        if(multTime<=now&&p.powerupTime<=0&&slowTime<=now) p.clearTint(); 
+      }
+    });
+  }
+  updateItems(h){
+    const b1=this.p1.getBounds();
+    const b2=this.singleMode?null:this.p2.getBounds();
+    this.items.forEach(it=>{ 
+      if(!it.active) return; 
+      const bi=it.getBounds(); 
+      if(Phaser.Geom.Intersects.RectangleToRectangle(b1,bi)){ 
+        this.collectItem(this.p1,it,true); 
+      } else if(b2&&Phaser.Geom.Intersects.RectangleToRectangle(b2,bi)){ 
+        this.collectItem(this.p2,it,false); 
+      }
+      if(it.y>h+50) it.destroy(); 
+    }); 
+    this.items=this.items.filter(i=>i.active);
+  }
+  updatePowerups(h){
+    const b1=this.p1.getBounds();
+    const b2=this.singleMode?null:this.p2.getBounds();
+    this.powerups.forEach(pw=>{ 
+      if(!pw.active) return; 
+      const bp=pw.getBounds(); 
+      if(Phaser.Geom.Intersects.RectangleToRectangle(b1,bp)){ 
+        this.collectPowerup(this.p1,pw); 
+      } else if(b2&&Phaser.Geom.Intersects.RectangleToRectangle(b2,bp)){ 
+        this.collectPowerup(this.p2,pw); 
+      }
+      if(pw.y>h+50) pw.destroy(); 
+    }); 
+    this.powerups=this.powerups.filter(p=>p.active);
+  }
+  handlePlayerCollision(p1,p2){
+    const now=this.time.now; if(now-this.lastStealTime<1000) return;
+    const big1=p1.powerupTime>0&&p1.scaleX>1, big2=p2.powerupTime>0&&p2.scaleX>1;
+    if(big1&&!big2){ this.score1=Math.max(0,this.score1+1); this.score2=Math.max(0,this.score2-1); this.updateScores(); this.playTone([300,250,200]); this.createParticles(p1.x,p1.y,0xFFD700); this.lastStealTime=now; }
+    else if(big2&&!big1){ this.score2=Math.max(0,this.score2+1); this.score1=Math.max(0,this.score1-1); this.updateScores(); this.playTone([300,250,200]); this.createParticles(p2.x,p2.y,0xFFD700); this.lastStealTime=now; }
+  }
+  updateScores(){ 
+    this.scoreText1.setText('$'+this.score1+'K'); 
+    if(!this.singleMode){ 
+      this.scoreText2.setText('$'+this.score2+'K'); 
+    } else {
+      const hs=parseInt(localStorage.getItem('highScore'))||0;
+      if(this.score1>hs){ this.highScoreText.setText('$'+this.score1+'K'); }
+    }
+  }
 }
 
-function playTone(scene, frequency, duration) {
-  const audioContext = scene.sound.context;
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-
-  oscillator.frequency.value = frequency;
-  oscillator.type = 'square';
-
-  gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-
-  oscillator.start(audioContext.currentTime);
-  oscillator.stop(audioContext.currentTime + duration);
+class ResultScene extends Phaser.Scene { 
+  constructor(){ super('result'); }
+  create(data){ 
+    const w=this.scale.width,h=this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    if(data&&data.singleMode){
+      const title=data.newRecord?'🏆 ¡NUEVO RECORD!':'JUEGO TERMINADO';
+      const titleColor=data.newRecord?'#FFD700':'#FFFFFF';
+      this.add.text(w/2, h/2-120, title, {fontSize:'48px',fontFamily:FN,color:titleColor,fontStyle:'bold'}).setOrigin(0.5);
+      this.add.text(w/2, h/2-40, 'TU SCORE', {fontSize:'24px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(0.5);
+      this.add.text(w/2, h/2+20, '$'+data.score1+'K', {fontSize:'64px',fontFamily:FN,color:'#5DADE2',fontStyle:'bold'}).setOrigin(0.5);
+      this.add.text(w/2, h/2+100, 'RECORD: $'+data.highScore+'K', {fontSize:'28px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+      if(data.stats){ this.add.text(w/2, h/2+150, `BILLS: ${data.stats.b1}  OBSTÁCULOS: ${data.stats.h1}  POWER-UPS: ${data.stats.p1}`, {fontSize:'16px',fontFamily:FN,color:'#AAAAAA'}).setOrigin(0.5); }
+    } else {
+      const {score1,score2,winner,stats}=data||{};
+      let title='🤝 EMPATE'; if(winner===1) title='🚀 FOUNDER 1 GANA'; else if(winner===2) title='🔥 FOUNDER 2 GANA';
+      this.add.text(w/2, h/2-60, title, {fontSize:'48px',fontFamily:FN,color:'#FFFFFF',fontStyle:'bold'}).setOrigin(0.5);
+      this.add.text(w/2, h/2, `$${score1}K vs $${score2}K`, {fontSize:'28px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+      if(stats){ this.add.text(w/2, h/2+60, `BILLS: ${stats.b1+stats.b2}  OBST.: ${stats.h1+stats.h2}  POWER-UPS: ${stats.p1+stats.p2}`, {fontSize:'18px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5); }
+    }
+    const t=this.add.text(w/2, h-80, 'PRESS CONTINUE', {fontSize:'18px',fontFamily:FN,color:'#DDDDDD'}).setOrigin(0.5); this.tweens.add({targets:t,alpha:0,duration:500,yoyo:true,repeat:-1});
+    this.data=data;
+  }
+  update(){
+    if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) this.scene.start('gameOver',this.data);
+  }
 }
+
+class GameOverScene extends Phaser.Scene { 
+  constructor(){ super('gameOver'); }
+  create(data){ 
+    const w=this.scale.width,h=this.scale.height;
+    this.add.rectangle(w/2, h/2, w, h, 0x1a1a2e);
+    addStageLights(this);
+    this.add.text(w/2, 120, 'GAME OVER', {fontSize:'52px',fontFamily:FN,color:'#FFFFFF',fontStyle:'bold'}).setOrigin(0.5);
+    if(data&&data.singleMode){
+      this.add.text(w/2, 180, `FINAL SCORE: $${data.score1||0}K`, {fontSize:'28px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+      if(data.newRecord) this.add.text(w/2, 220, '¡NUEVO RECORD!', {fontSize:'22px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+    } else {
+      const s1=data&&data.score1||0, s2=data&&data.score2||0; 
+      this.add.text(w/2, 180, `FINAL: $${s1}K VS $${s2}K`, {fontSize:'24px',fontFamily:FN,color:'#FFD700'}).setOrigin(0.5);
+    }
+    this.add.text(w/2, 260, 'MADE FOR PLATANUS HACK 25', {fontSize:'16px',fontFamily:FN,color:'#CCCCCC'}).setOrigin(0.5);
+    const a=this.add.text(w/2, 340, 'PLAY AGAIN (START)', {fontSize:'20px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+    const b=this.add.text(w/2, 380, 'BACK TO MENU (B BUTTON)', {fontSize:'20px',fontFamily:FN,color:'#FFFFFF'}).setOrigin(0.5);
+  }
+  update(){
+    if(justPressed(this, 'START1', 'START2', 'P1A', 'P2A')) this.scene.start('mainMenu');
+    if(justPressed(this, 'P1B', 'P2B')) this.scene.start('mainMenu');
+  }
+}
+
+const config = { 
+  type: Phaser.AUTO, 
+  width: 800, 
+  height: 600, 
+  backgroundColor: '#1a1a2e', 
+  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }, 
+  scene: [IntroScene, MainMenuScene, GameModeScene, InstructionsScene, BackgroundSelectScene, CharacterSelectScene, VSScene, GameplayScene, ResultScene, GameOverScene] 
+};
+new Phaser.Game(config);
+
